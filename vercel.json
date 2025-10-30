@@ -7,14 +7,9 @@
         }
     ],
     "routes": [
-        {
-            "src": "/api/(.*)",
-            "dest": "/server.js"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/server.js"
-        }
+        { "src": "/api/(.*)", "dest": "/server.js" },
+        { "src": "/(.*\\.(css|js|png|jpg|jpeg|svg|ico|json|webmanifest|woff2?))", "dest": "/public/$1" },
+        { "src": "/(.*)", "dest": "/server.js" }
     ],
     "env": {
         "NODE_ENV": "production"
