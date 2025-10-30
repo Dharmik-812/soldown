@@ -5,6 +5,7 @@
 // State Management
 let currentFormats = [];
 let selectedFormat = null;
+let currentFormatType = 'mp4'; // 'mp4' or 'mp3'
 
 // DOM Elements
 const splashScreen = document.getElementById('splash-screen');
@@ -18,6 +19,8 @@ const progressSection = document.getElementById('progress-section');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
 const installBtn = document.getElementById('install-btn');
+const loadingAnimation = document.getElementById('loading-animation');
+const formatTypeButtons = document.querySelectorAll('.format-type-btn');
 let deferredPrompt;
 
 // Initialize App
@@ -28,6 +31,24 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(reg => console.log('Service Worker registered'))
             .catch(err => console.log('Service Worker registration failed'));
     }
+    
+    // Format type selector
+    formatTypeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active state
+            formatTypeButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Update format type
+            currentFormatType = btn.dataset.format;
+            
+            // Reset UI if formats were already loaded
+            if (currentFormats.length > 0) {
+                resetUI();
+                analyzeURL(urlInput.value.trim());
+            }
+        });
+    });
     
     // Show splash screen for 2-3 seconds
     setTimeout(() => {
@@ -116,8 +137,12 @@ function resetUI() {
     formatSelection.classList.add('hidden');
     progressSection.classList.add('hidden');
     statusMessage.classList.add('hidden');
+    loadingAnimation.classList.add('hidden');
     downloadBtn.disabled = false;
-    downloadBtn.innerHTML = '<span class="btn-text">Download</span>';
+    const btnText = downloadBtn.querySelector('.btn-text');
+    const btnLoader = downloadBtn.querySelector('.btn-loader');
+    if (btnText) btnText.classList.remove('hidden');
+    if (btnLoader) btnLoader.classList.add('hidden');
     currentFormats = [];
     selectedFormat = null;
 }
@@ -132,10 +157,15 @@ function renderFormatOptions(formats) {
         option.className = 'format-option';
         option.dataset.index = index;
 
+        const displayName = currentFormatType === 'mp3' ? 'MP3 Audio' : format.format;
+        const displayQuality = currentFormatType === 'mp3' 
+            ? `${format.quality}` 
+            : `${format.format} • ${format.quality}`;
+
         option.innerHTML = `
             <div class="format-info">
-                <div class="format-name">${format.format} • ${format.quality}</div>
-                <div class="format-details">${format.codec || 'Available'} • itag ${format.itag}</div>
+                <div class="format-name">${displayQuality}</div>
+                <div class="format-details">${format.codec || 'Available'}</div>
             </div>
             <div class="format-size">${format.size || 'N/A'}</div>
         `;
@@ -191,10 +221,12 @@ async function analyzeURL(url) {
     try {
         // Update UI
         downloadBtn.disabled = true;
-        downloadBtn.innerHTML = '<span class="btn-loader">⚙️ Analyzing Link...</span>';
-
-        // Reset UI
-        resetUI();
+        const btnText = downloadBtn.querySelector('.btn-text');
+        const btnLoader = downloadBtn.querySelector('.btn-loader');
+        if (btnText) btnText.classList.add('hidden');
+        if (btnLoader) btnLoader.classList.remove('hidden');
+        loadingAnimation.classList.remove('hidden');
+        formatSelection.classList.add('hidden');
 
         // Call backend API
         const response = await fetch('/api/analyze', {
@@ -211,19 +243,53 @@ async function analyzeURL(url) {
             throw new Error(data.error || 'Failed to analyze URL');
         }
 
+        // Hide loading animation
+        loadingAnimation.classList.add('hidden');
+
+        // Filter formats based on selected type (MP4 or MP3)
+        let filteredFormats = data.formats;
+        if (currentFormatType === 'mp4') {
+            filteredFormats = data.formats.filter(f => f.format === 'MP4');
+        } else if (currentFormatType === 'mp3') {
+            // For MP3, we'll extract audio - backend will handle this
+            filteredFormats = data.formats;
+        }
+
+        if (filteredFormats.length === 0) {
+            showStatus(`No ${currentFormatType.toUpperCase()} formats available for this video`, 'error');
+            downloadBtn.disabled = false;
+            const btnText = downloadBtn.querySelector('.btn-text');
+            const btnLoader = downloadBtn.querySelector('.btn-loader');
+            if (btnText) {
+                btnText.textContent = 'Analyze';
+                btnText.classList.remove('hidden');
+            }
+            if (btnLoader) btnLoader.classList.add('hidden');
+            return;
+        }
+
         // Show format options
-        showStatus(`Found ${data.formats.length} format(s) available`, 'success');
-        renderFormatOptions(data.formats);
+        showStatus(`Found ${filteredFormats.length} ${currentFormatType.toUpperCase()} format(s) available`, 'success');
+        renderFormatOptions(filteredFormats);
 
         // Update button
         downloadBtn.disabled = false;
-        downloadBtn.innerHTML = '<span class="btn-text">Download</span>';
+        if (btnText) {
+            btnText.textContent = 'Download';
+            btnText.classList.remove('hidden');
+        }
+        if (btnLoader) btnLoader.classList.add('hidden');
 
     } catch (error) {
         console.error('Error analyzing URL:', error);
+        loadingAnimation.classList.add('hidden');
         showStatus(error.message || 'Failed to analyze URL. Please try again.', 'error');
         downloadBtn.disabled = false;
-        downloadBtn.innerHTML = '<span class="btn-text">Download</span>';
+        if (btnText) {
+            btnText.textContent = 'Analyze';
+            btnText.classList.remove('hidden');
+        }
+        if (btnLoader) btnLoader.classList.add('hidden');
     }
 }
 
@@ -232,9 +298,18 @@ async function performDownload(url, format) {
     try {
         // Update UI
         downloadBtn.disabled = true;
-        downloadBtn.innerHTML = '<span class="btn-loader">⚙️ Converting...</span>';
+        const btnText = downloadBtn.querySelector('.btn-text');
+        const btnLoader = downloadBtn.querySelector('.btn-loader');
+        if (btnText) {
+            btnText.textContent = 'Downloading...';
+            btnText.classList.remove('hidden');
+        }
+        if (btnLoader) btnLoader.classList.add('hidden');
         formatSelection.classList.add('hidden');
-        showProgress(30, 'Converting to selected format...');
+        const progressText = currentFormatType === 'mp3' 
+            ? 'Converting to MP3 audio...' 
+            : 'Preparing download...';
+        showProgress(30, progressText);
 
         // Call backend API
         const response = await fetch('/api/download', {
@@ -244,6 +319,7 @@ async function performDownload(url, format) {
             },
             body: JSON.stringify({
                 url,
+                formatType: currentFormatType,
                 format: format.format,
                 quality: format.quality,
                 itag: format.itag
@@ -258,12 +334,17 @@ async function performDownload(url, format) {
         // Get file info
         const blob = await response.blob();
         const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'video.' + (format.format === 'MP3' ? 'mp3' : 'mp4');
+        const fileExtension = currentFormatType === 'mp3' ? 'mp3' : 'mp4';
+        let filename = `video.${fileExtension}`;
 
         if (contentDisposition) {
             const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
             if (filenameMatch) {
                 filename = filenameMatch[1];
+                // Ensure correct extension
+                if (currentFormatType === 'mp3' && !filename.endsWith('.mp3')) {
+                    filename = filename.replace(/\.[^/.]+$/, '.mp3');
+                }
             }
         }
 
@@ -295,7 +376,13 @@ async function performDownload(url, format) {
         showStatus(error.message || 'Download failed. Please try again.', 'error');
         showProgress(0);
         downloadBtn.disabled = false;
-        downloadBtn.innerHTML = '<span class="btn-text">Download</span>';
+        const btnText = downloadBtn.querySelector('.btn-text');
+        const btnLoader = downloadBtn.querySelector('.btn-loader');
+        if (btnText) {
+            btnText.textContent = 'Download';
+            btnText.classList.remove('hidden');
+        }
+        if (btnLoader) btnLoader.classList.add('hidden');
     }
 }
 

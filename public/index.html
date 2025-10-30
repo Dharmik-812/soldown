@@ -68,12 +68,23 @@
 
                     <!-- URL Input Section -->
                     <div class="input-section">
+                        <!-- Format Type Selector -->
+                        <div class="format-type-selector">
+                            <button class="format-type-btn active" data-format="mp4">
+                                <span class="format-type-icon">🎥</span>
+                                <span class="format-type-text">MP4 Video</span>
+                            </button>
+                            <button class="format-type-btn" data-format="mp3">
+                                <span class="format-type-icon">🎵</span>
+                                <span class="format-type-text">MP3 Audio</span>
+                            </button>
+                        </div>
                         <div class="input-wrapper">
                             <input type="text" id="video-url" class="url-input" placeholder="Paste video URL here..."
                                 autocomplete="off">
                             <button id="download-btn" class="download-btn">
-                                <span class="btn-text">Download</span>
-                                <span class="btn-loader hidden">⚙️ Processing...</span>
+                                <span class="btn-text">Analyze</span>
+                                <span class="btn-loader hidden">Processing...</span>
                             </button>
                         </div>
                         <div class="supported-platforms">
@@ -90,9 +101,15 @@
                     <!-- Status Message -->
                     <div id="status-message" class="status-message hidden"></div>
 
+                    <!-- Loading Animation -->
+                    <div id="loading-animation" class="loading-animation hidden">
+                        <div class="loading-spinner"></div>
+                        <p class="loading-text">Analyzing video link...</p>
+                    </div>
+
                     <!-- Format Selection -->
                     <div id="format-selection" class="format-selection hidden">
-                        <h3 class="format-title">Select Format & Quality</h3>
+                        <h3 class="format-title">Select Quality</h3>
                         <div id="format-options" class="format-options">
                             <!-- Format options will be dynamically added here -->
                         </div>

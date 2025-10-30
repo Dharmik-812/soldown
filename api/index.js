@@ -8,7 +8,11 @@ const path = require('path');
 const ytdl = require('ytdl-core');
 const ytdlp = require('youtube-dl-exec');
 const ffmpegPath = require('ffmpeg-static');
+const ffmpeg = require('fluent-ffmpeg');
 require('dotenv').config();
+
+// Configure ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -144,11 +148,27 @@ app.post('/api/analyze', async (req, res) => {
         // Get video info
         const videoInfo = await getVideoInfo(url);
 
+        // Add MP3 option for video formats
+        const mp3Formats = videoInfo.formats.map(f => ({
+            format: 'MP3',
+            quality: f.quality || 'Audio',
+            codec: 'AAC → MP3',
+            size: 'N/A', // Size will be known after conversion
+            itag: f.itag || 'audio',
+            type: 'audio'
+        }));
+
+        // Combine video and audio formats
+        const allFormats = [
+            ...videoInfo.formats,
+            ...mp3Formats
+        ];
+
         res.json({
             success: true,
             title: videoInfo.title,
             duration: videoInfo.duration,
-            formats: videoInfo.formats,
+            formats: allFormats,
             platform: videoInfo.platform
         });
 
@@ -158,32 +178,53 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// Download video
+// Download video or audio
 app.post('/api/download', async (req, res) => {
     try {
-        const { url, format, quality, itag } = req.body;
+        const { url, format, quality, itag, formatType } = req.body;
 
         if (!url) {
             return res.status(400).json({ error: 'URL is required' });
         }
 
+        const isMP3 = formatType === 'mp3';
+
         // Check if running on Vercel or serverless environment
         if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-            // For Vercel/serverless, redirect to external download service or use ytdl-core for YouTube
+            // For Vercel/serverless, use ytdl-core for YouTube
             if (ytdl.validateURL(url)) {
-                // Use ytdl-core for YouTube videos (works on Vercel)
                 try {
                     const info = await ytdl.getInfo(url);
-                    const format = info.formats.find(f => f.itag == itag) || 
-                                  info.formats.find(f => f.hasVideo && f.hasAudio) ||
-                                  info.formats[0];
+                    const selectedFormat = info.formats.find(f => f.itag == itag) || 
+                                          info.formats.find(f => f.hasVideo && f.hasAudio) ||
+                                          info.formats[0];
                     
-                    const stream = ytdl.downloadFromInfo(info, { format });
-                    
-                    res.setHeader('Content-Disposition', `attachment; filename="${info.videoDetails.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.mp4"`);
-                    res.setHeader('Content-Type', 'video/mp4');
-                    
-                    stream.pipe(res);
+                    if (isMP3) {
+                        // Extract audio as MP3
+                        const audioStream = ytdl.downloadFromInfo(info, { format: selectedFormat });
+                        
+                        res.setHeader('Content-Disposition', `attachment; filename="${info.videoDetails.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.mp3"`);
+                        res.setHeader('Content-Type', 'audio/mpeg');
+                        
+                        // Convert to MP3 using ffmpeg
+                        ffmpeg(audioStream)
+                            .audioBitrate(128)
+                            .audioCodec('libmp3lame')
+                            .format('mp3')
+                            .on('error', (err) => {
+                                console.error('FFmpeg error:', err);
+                                if (!res.headersSent) res.status(500).json({ error: 'Audio conversion failed' });
+                            })
+                            .pipe(res, { end: true });
+                    } else {
+                        // Download video as MP4
+                        const stream = ytdl.downloadFromInfo(info, { format: selectedFormat });
+                        
+                        res.setHeader('Content-Disposition', `attachment; filename="${info.videoDetails.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.mp4"`);
+                        res.setHeader('Content-Type', 'video/mp4');
+                        
+                        stream.pipe(res);
+                    }
                 } catch (error) {
                     console.error('YouTube download error:', error);
                     res.status(500).json({ error: 'Download failed. Please try a different quality.' });
@@ -194,20 +235,43 @@ app.post('/api/download', async (req, res) => {
                 });
             }
         } else {
-            // Use yt-dlp for broad site support and MP4 output (VPS/dedicated server)
-            // Always merge best video and audio into mp4 for non-YouTube downloads
-            const chosenFormat = itag || 'bestvideo+bestaudio[ext=mp4]/best[ext=mp4]/best';
-            res.setHeader('Content-Disposition', `attachment; filename="video.mp4"`);
-            res.setHeader('Content-Type', 'video/mp4');
+            // Use yt-dlp for broad site support (VPS/dedicated server)
+            let chosenFormat, outputFormat, fileExtension, contentType;
+            
+            if (isMP3) {
+                // Extract audio as MP3
+                chosenFormat = 'bestaudio/best';
+                outputFormat = 'mp3';
+                fileExtension = 'mp3';
+                contentType = 'audio/mpeg';
+            } else {
+                // Download video as MP4
+                chosenFormat = itag || 'bestvideo+bestaudio[ext=mp4]/best[ext=mp4]/best';
+                outputFormat = 'mp4';
+                fileExtension = 'mp4';
+                contentType = 'video/mp4';
+            }
+            
+            res.setHeader('Content-Disposition', `attachment; filename="video.${fileExtension}"`);
+            res.setHeader('Content-Type', contentType);
 
-            const proc = ytdlp.exec(url, {
-                f: chosenFormat, // Always merges video+audio if available!
+            const ytdlpOptions = isMP3 ? {
+                f: chosenFormat,
+                x: true, // Extract audio
+                o: '-',
+                ffmpegLocation: ffmpegPath || undefined,
+                audioFormat: 'mp3',
+                audioQuality: '0' // Best quality
+            } : {
+                f: chosenFormat,
                 o: '-',
                 ffmpegLocation: ffmpegPath || undefined,
                 mergeOutputFormat: 'mp4',
                 noPart: true,
                 remuxVideo: 'mp4'
-            }, { shell: true, maxBuffer: 1024 * 1024 * 64 });
+            };
+
+            const proc = ytdlp.exec(url, ytdlpOptions, { shell: true, maxBuffer: 1024 * 1024 * 64 });
 
             proc.stdout.pipe(res);
             proc.stderr.on('data', () => { });
