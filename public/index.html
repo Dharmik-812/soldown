@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>SOLDOWN - Download Videos From Any Platform</title>
+    <meta name="description"
+        content="Download videos from YouTube, Vimeo, Twitter, Instagram, TikTok and more in MP4 or MP3 format">
+    <meta name="theme-color" content="#B08968">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SOLDOWN">
+
+    <!-- Favicons and PWA Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="apple-touch-icon" href="/icon.svg">
+    <link rel="manifest" href="/manifest.json">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="splash-screen">
+        <div class="splash-content">
+            <div class="logo-container">
+                <h1 class="logo">SOLDOWN</h1>
+                <div class="download-animation">
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                </div>
+            </div>
+            <div class="splash-subtitle">Download videos from any platform</div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="main-app" class="main-app hidden">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <h1 class="brand-logo">SOLDOWN</h1>
+                <div class="header-right">
+                    <button id="install-btn" class="install-btn hidden">📱 Install App</button>
+                    <div class="legal-notice">
+                        <span class="disclaimer">⚠ For personal, non-copyrighted content only</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                <div class="hero-section">
+                    <h2 class="hero-title">Download Videos in Seconds</h2>
+                    <p class="hero-subtitle">Paste any video URL and get instant access to multiple formats</p>
+
+                    <!-- URL Input Section -->
+                    <div class="input-section">
+                        <div class="input-wrapper">
+                            <input type="text" id="video-url" class="url-input" placeholder="Paste video URL here..."
+                                autocomplete="off">
+                            <button id="download-btn" class="download-btn">
+                                <span class="btn-text">Download</span>
+                                <span class="btn-loader hidden">⚙️ Processing...</span>
+                            </button>
+                        </div>
+                        <div class="supported-platforms">
+                            <span class="platform-label">Supported:</span>
+                            <span class="platform-tag">YouTube</span>
+                            <span class="platform-tag">Vimeo</span>
+                            <span class="platform-tag">Twitter</span>
+                            <span class="platform-tag">Instagram</span>
+                            <span class="platform-tag">TikTok</span>
+                            <span class="platform-tag">More...</span>
+                        </div>
+                    </div>
+
+                    <!-- Status Message -->
+                    <div id="status-message" class="status-message hidden"></div>
+
+                    <!-- Format Selection -->
+                    <div id="format-selection" class="format-selection hidden">
+                        <h3 class="format-title">Select Format & Quality</h3>
+                        <div id="format-options" class="format-options">
+                            <!-- Format options will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- Progress Section -->
+                    <div id="progress-section" class="progress-section hidden">
+                        <div class="progress-bar-container">
+                            <div id="progress-bar" class="progress-bar"></div>
+                        </div>
+                        <div id="progress-text" class="progress-text">Processing...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Features Section -->
+        <section class="features">
+            <div class="container">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📥</div>
+                        <h3>No Size Limits</h3>
+                        <p>Download videos of any size without restrictions</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎵</div>
+                        <h3>Multiple Formats</h3>
+                        <p>Choose from MP4, MP3, and various quality options</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Fast & Reliable</h3>
+                        <p>Lightning-fast downloads with 99.5% uptime</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Secure</h3>
+                        <p>HTTPS encrypted connections for your safety</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2024 SOLDOWN. Built for educational purposes.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
