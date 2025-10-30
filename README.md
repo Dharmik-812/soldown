@@ -47,6 +47,11 @@ cd soldown
 npm install
 ```
 
+**Note for Windows users:** If you encounter a Python-related error during installation, use:
+```bash
+npm run install-win
+```
+
 3. Create a `.env` file (optional):
 
 ```bash
@@ -71,6 +76,8 @@ npm run dev
 ```
 http://localhost:3000
 ```
+
+Note: If port 3000 is in use, the server will automatically try the next available port (3001, 3002, etc.) and display the correct URL in the console.
 
 ## 📋 Usage
 
@@ -104,7 +111,8 @@ soldown/
 │   ├── index.html      # Main HTML file
 │   ├── styles.css      # Styling and animations
 │   └── app.js          # Frontend JavaScript
-├── server.js            # Express backend server
+├── api/
+│   └── index.js        # Express backend server
 ├── package.json         # Dependencies and scripts
 ├── .gitignore          # Git ignore rules
 └── README.md           # This file

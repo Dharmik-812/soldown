@@ -17,8 +17,19 @@ If not installed, download from: https://nodejs.org/
 
 ### 2. Install Dependencies
 
+**For Linux/Mac:**
 ```bash
 npm install
+```
+
+**For Windows (PowerShell):**
+```bash
+$env:YOUTUBE_DL_SKIP_PYTHON_CHECK=1; npm install
+```
+
+**Or use the helper script:**
+```bash
+npm run install-win
 ```
 
 This will install:
@@ -66,6 +77,20 @@ NODE_ENV=development
 
 Then restart the server.
 
+### Python-Related Installation Error (Windows)
+
+If you see an error like `youtube-dl-exec needs Python`:
+
+**PowerShell:**
+```bash
+$env:YOUTUBE_DL_SKIP_PYTHON_CHECK=1; npm install
+```
+
+**Or use the helper script:**
+```bash
+npm run install-win
+```
+
 ### Module Not Found Errors
 
 If you encounter module not found errors:
@@ -97,7 +122,7 @@ For production deployment, consider:
 
 ```bash
 npm install -g pm2
-pm2 start server.js --name soldown
+pm2 start api/index.js --name soldown
 pm2 save
 pm2 startup
 ```

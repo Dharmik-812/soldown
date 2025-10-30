@@ -102,7 +102,8 @@ To support all platforms (Vimeo, Twitter, etc.):
 │   ├── manifest.json    # PWA manifest
 │   ├── sw.js           # Service Worker
 │   └── icon.svg        # App icon
-├── server.js            # Backend with Vercel detection
+├── api/
+│   └── index.js        # Backend with Vercel detection
 ├── vercel.json          # Vercel configuration
 └── package.json         # Dependencies
 ```
