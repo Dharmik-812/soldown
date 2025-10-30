@@ -2,7 +2,7 @@
     "name": "soldown",
     "version": "1.0.0",
     "description": "The most accessible, reliable, and user-friendly web-based platform for downloading online videos",
-    "main": "server.js",
+    "main": "api/index.js",
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js"

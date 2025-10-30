@@ -2,14 +2,23 @@
     "version": 2,
     "builds": [
         {
-            "src": "server.js",
+            "src": "api/index.js",
             "use": "@vercel/node"
         }
     ],
     "routes": [
-        { "src": "/api/(.*)", "dest": "/server.js" },
-        { "src": "^/([\\w\\-.]+)\\.(css|js|png|jpg|jpeg|svg|ico|json|webmanifest|woff2?)$", "dest": "/public/$1.$2" },
-        { "src": "/(.*)", "dest": "/server.js" }
+        {
+            "src": "/api/(.*)",
+            "dest": "/api/index.js"
+        },
+        {
+            "src": "^/([\\w\\-.]+)\\.(css|js|png|jpg|jpeg|svg|ico|json|webmanifest|woff2?)$",
+            "dest": "/public/$1.$2"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/api/index.js"
+        }
     ],
     "env": {
         "NODE_ENV": "production"
