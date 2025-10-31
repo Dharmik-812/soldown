@@ -22,8 +22,7 @@ const sortByEl = document.getElementById('sort-by');
 const toastContainer = document.getElementById('toast-container');
 const recentList = document.getElementById('recent-list');
 // Bulk DOM
-// Accent DOM
-const accentButtons = document.querySelectorAll('.accent-dot');
+// Accent removed
 const bulkInput = document.getElementById('bulk-input');
 const bulkAddBtn = document.getElementById('bulk-add');
 const bulkClearBtn = document.getElementById('bulk-clear');
@@ -222,7 +221,8 @@ initBulk();
 initSplashAndTransitions();
 initScrollAppear();
 initRipples();
-initAccent();
+initMotionToggle();
+initScrollTop();
 
 function extractFilename(contentDisposition){
   if (!contentDisposition) return '';
@@ -234,19 +234,44 @@ async function safeJson(resp){
   try { return await resp.json(); } catch(_e) { return {}; }
 }
 
-function initAccent(){
-  accentButtons.forEach(btn => {
-    btn.addEventListener('click', () => setAccent(btn.getAttribute('data-accent')));
-  });
-  const saved = localStorage.getItem('soldown_accent');
-  if (saved) setAccent(saved, true);
+// Accent handlers removed
+
+function initScrollTop(){
+  // Create button once per page
+  let btn = document.getElementById('scroll-top-btn');
+  if (!btn){
+    btn = document.createElement('button');
+    btn.id = 'scroll-top-btn';
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>Top';
+    document.body.appendChild(btn);
+  }
+  const onScroll = () => {
+    if (window.scrollY > 300) btn.classList.add('show'); else btn.classList.remove('show');
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 }
 
-function setAccent(name, skipSave){
-  document.body.classList.remove('accent-red','accent-blue','accent-violet','accent-emerald');
-  const cls = `accent-${name}`;
-  document.body.classList.add(cls);
-  if (!skipSave) localStorage.setItem('soldown_accent', name);
+function initMotionToggle(){
+  const navRight = document.querySelector('.nav-right');
+  if (!navRight) return;
+  const btn = document.createElement('button');
+  btn.id = 'motion-toggle';
+  btn.className = 'btn';
+  btn.title = 'Toggle reduced motion';
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9 7 7 0 0 0 9 9z"></path></svg>Motion';
+  const apply = (on) => {
+    document.body.classList.toggle('reduce-motion', !!on);
+    localStorage.setItem('soldown_reduce_motion', on ? '1' : '0');
+  };
+  const saved = localStorage.getItem('soldown_reduce_motion') === '1';
+  if (saved) document.body.classList.add('reduce-motion');
+  btn.addEventListener('click', () => {
+    const now = !document.body.classList.contains('reduce-motion');
+    apply(now);
+    toast(now ? 'Reduced motion on' : 'Reduced motion off', 'info');
+  });
+  navRight.appendChild(btn);
 }
 
 function initScrollAppear(){
@@ -356,15 +381,11 @@ function initSplashAndTransitions(){
   document.body.classList.add('page-enter');
   setTimeout(() => document.body.classList.remove('page-enter'), 260);
 
-  // Splash auto-hide: CSS anim already hides; remove node after delay
+  // Splash auto-hide: always show on each load and remove after ~3.5s
   const splash = document.getElementById('splash');
   if (splash){
-    const seen = localStorage.getItem('soldown_seenSplash') === '1';
-    if (seen){
-      splash.remove();
-    } else {
-      setTimeout(() => { splash.style.display = 'none'; splash.remove(); localStorage.setItem('soldown_seenSplash','1'); }, 1300);
-    }
+    document.body.classList.add('splashing');
+    setTimeout(() => { splash.style.display = 'none'; splash.remove(); document.body.classList.remove('splashing'); }, 3600);
   }
 
   // Intercept same-origin nav links for fade-out

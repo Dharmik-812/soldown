@@ -2,11 +2,15 @@
 const CACHE_NAME = 'soldown-v1';
 const urlsToCache = [
     '/',
+    '/index.html',
     '/home.html',
     '/bulk.html',
+    '/legal.html',
+    '/privacy.html',
     '/styles.css',
     '/app.js',
-    '/manifest.json'
+    '/manifest.json',
+    '/icon.svg'
 ];
 
 // Install event
