@@ -2,6 +2,8 @@
 const CACHE_NAME = 'soldown-v1';
 const urlsToCache = [
     '/',
+    '/home.html',
+    '/bulk.html',
     '/styles.css',
     '/app.js',
     '/manifest.json'

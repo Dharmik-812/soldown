@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOLDOWN — Fast, Reliable Video Downloader</title>
+    <meta name="description" content="SOLDOWN helps you download videos fast in MP4 or MP3 with a modern, animated UI.">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="apple-touch-icon" href="/icon.svg">
+    <link rel="manifest" href="/manifest.json">
+    <script>try{if(localStorage.getItem('soldown_theme')==='light'){document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('light')});}}catch(e){}</script>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="bg-aurora" aria-hidden="true"></div>
+    <div id="splash" class="splash-overlay" aria-hidden="true">
+        <div class="splash-inner">
+            <div class="splash-logo">SOLDOWN</div>
+            <div class="splash-wave" aria-label="Preparing">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header class="site-header">
+            <nav class="nav">
+                <div class="nav-left">
+                    <h1 class="logo">SOLDOWN</h1>
+                </div>
+                <div class="nav-right">
+                    <a class="nav-link" href="/home.html">Home</a>
+                    <a class="nav-link" href="/index.html">Single</a>
+                    <a class="nav-link" href="/bulk.html">Bulk</a>
+                    <button id="theme-toggle" class="btn" title="Toggle theme">Theme</button>
+                    <div class="accent-palette" title="Accent colors">
+                        <button class="accent-dot accent-red" data-accent="red" aria-label="Red"></button>
+                        <button class="accent-dot accent-blue" data-accent="blue" aria-label="Blue"></button>
+                        <button class="accent-dot accent-violet" data-accent="violet" aria-label="Violet"></button>
+                        <button class="accent-dot accent-emerald" data-accent="emerald" aria-label="Emerald"></button>
+                    </div>
+                </div>
+            </nav>
+            <p class="tagline">Fast, reliable video downloads with a modern, animated UI</p>
+        </header>
+
+        <main>
+            <section class="main-card hero">
+                <h2 class="preview-title">Fast, modern video downloads</h2>
+                <p class="preview-meta">Pick a style, paste a link, download in MP4 or MP3. Bulk mode applies one format to all links.</p>
+                <div class="cta-group">
+                    <a href="/index.html" class="btn">⬇️ Download a Single Video</a>
+                    <a href="/bulk.html" class="btn">📥 Download Multiple Videos</a>
+                </div>
+            </section>
+
+            <section class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-title">🌙/☀️ Beautiful themes</div>
+                    <div class="feature-text">Light/dark modes with accent colors and smooth transitions.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">🎬/🎵 MP4 & MP3</div>
+                    <div class="feature-text">Choose video or audio with quality and size insights.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">📥 Bulk mode</div>
+                    <div class="feature-text">Add many links, set one format, and download all.</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-title">📱 Responsive</div>
+                    <div class="feature-text">Optimized for mobile and desktop with crisp UI.</div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="footer-inner">
+                <div class="footer-brand">SOLDOWN</div>
+                <div class="footer-links">
+                    <a class="nav-link" href="/home.html">Home</a>
+                    <a class="nav-link" href="/index.html">Single</a>
+                    <a class="nav-link" href="/bulk.html">Bulk</a>
+                    <a class="nav-link" href="/legal.html">Legal</a>
+                    <a class="nav-link" href="/privacy.html">Privacy</a>
+                </div>
+                <div class="footer-copy">© 2025 SOLDOWN | Legal | Privacy</div>
+            </div>
+        </footer>
+    </div>
+
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+    }
+    </script>
+    <script src="/app.js"></script>
+</body>
+</html>

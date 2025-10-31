@@ -1,682 +1,597 @@
-// ========================================
-// SOLDOWN - Frontend Application Logic
-// ========================================
+// SOLDOWN clean UI logic
 
-// State Management
-let currentFormats = [];
-let selectedFormat = null;
-let currentFormatType = 'mp4'; // 'mp4' or 'mp3'
-
-// DOM Elements
-const splashScreen = document.getElementById('splash-screen');
-const mainApp = document.getElementById('main-app');
-// -------------- TAPE RECORDER UI REFS --------------
-const urlInput = document.getElementById('video-url');
-const insertBtn = document.getElementById('insert-btn');
-const diskArea = document.getElementById('disk-area');
-const statusMessage = document.getElementById('main-status');
-const loadingAnimation = document.getElementById('loading-animation');
-const backBtn = document.getElementById('back-btn');
-const nextBtn = document.getElementById('next-btn');
-const playBtn = document.getElementById('play-btn');
-const stopBtn = document.getElementById('stop-btn');
+// DOM
+const videoUrlInput = document.getElementById('video-url');
+const analyzeBtn = document.getElementById('analyze-btn');
+const pasteBtn = document.getElementById('paste-btn');
+const clearBtn = document.getElementById('clear-btn');
 const mp4Btn = document.getElementById('mp4-btn');
 const mp3Btn = document.getElementById('mp3-btn');
-const ledPlay = document.getElementById('led-play');
-const ledStop = document.getElementById('led-stop');
-const ledSpin = document.getElementById('led-spin');
-const ledRec = document.getElementById('led-rec');
-const tapeWindow = document.querySelector('.tape-window');
-const leftReel = document.querySelector('.left-reel');
-const rightReel = document.querySelector('.right-reel');
-const tapeFace = document.getElementById('tape-face');
-const tuningDial = document.querySelector('.tuning-dial');
-const soundToggleBtn = document.getElementById('sound-toggle');
-// Get EJECT button
-const ejectBtn = document.getElementById('eject-btn');
+const resultsSection = document.getElementById('results-section');
+const formatsGrid = document.getElementById('formats-grid');
+const downloadBtn = document.getElementById('download-btn');
+const statusMessage = document.getElementById('status-message');
+const themeToggle = document.getElementById('theme-toggle');
+const previewCard = document.getElementById('preview-card');
+const previewThumb = document.getElementById('preview-thumb');
+const previewTitle = document.getElementById('preview-title');
+const previewDuration = document.getElementById('preview-duration');
+const previewPlatform = document.getElementById('preview-platform');
+const qualityFilterEl = document.getElementById('quality-filter');
+const sortByEl = document.getElementById('sort-by');
+const toastContainer = document.getElementById('toast-container');
+const recentList = document.getElementById('recent-list');
+// Bulk DOM
+// Accent DOM
+const accentButtons = document.querySelectorAll('.accent-dot');
+const bulkInput = document.getElementById('bulk-input');
+const bulkAddBtn = document.getElementById('bulk-add');
+const bulkClearBtn = document.getElementById('bulk-clear');
+const bulkPasteBtn = document.getElementById('bulk-paste');
+const bulkList = document.getElementById('bulk-list');
+const bulkTypeEl = document.getElementById('bulk-type');
+const bulkQualityEl = document.getElementById('bulk-quality');
+const bulkDownloadBtn = document.getElementById('bulk-download');
+const bulkProgress = document.getElementById('bulk-progress');
+const bulkExportBtn = document.getElementById('bulk-export');
+const bulkImportBtn = document.getElementById('bulk-import');
+const bulkImportFile = document.getElementById('bulk-import-file');
 
-// Dust glint flare logic:
-const dustGlint = document.querySelector('.dust-glint');
-function showDustGlint(x) {
-    if (!dustGlint) return;
-    dustGlint.classList.add('active');
-    dustGlint.style.background = `linear-gradient(113deg, transparent ${(x-30)/window.innerWidth*100}%, #fff8 87%, #ffdaa024 92%, transparent 98%)`;
-    setTimeout(() => {
-        if (dustGlint) dustGlint.classList.remove('active');
-    }, 230)
+// State
+let currentFormatType = 'mp4';
+let availableFormats = [];
+let selectedFormat = null;
+let analyzedUrl = '';
+let bulkLinks = [];
+
+// Events
+if (analyzeBtn) analyzeBtn.addEventListener('click', analyzeVideo);
+if (mp4Btn) mp4Btn.addEventListener('click', () => switchFormatType('mp4'));
+if (mp3Btn) mp3Btn.addEventListener('click', () => switchFormatType('mp3'));
+if (downloadBtn) downloadBtn.addEventListener('click', downloadVideo);
+if (videoUrlInput) {
+  videoUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') analyzeVideo(); });
+  videoUrlInput.addEventListener('input', quickPreviewFromInput);
 }
-document.addEventListener('mousemove', (e) => {
-    showDustGlint(e.clientX);
+if (pasteBtn) pasteBtn.addEventListener('click', pasteFromClipboard);
+if (clearBtn) clearBtn.addEventListener('click', () => {
+  if (videoUrlInput){ videoUrlInput.value=''; videoUrlInput.focus(); }
+  if (previewCard){ previewCard.style.display = 'none'; }
 });
-document.addEventListener('touchmove', (e) => {
-    if (e.touches && e.touches[0])
-        showDustGlint(e.touches[0].clientX);
-});
+if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+if (qualityFilterEl) qualityFilterEl.addEventListener('change', renderFormats);
+if (sortByEl) sortByEl.addEventListener('change', renderFormats);
+document.addEventListener('keydown', globalShortcuts);
+if (bulkAddBtn) bulkAddBtn.addEventListener('click', () => addBulk(bulkInput?.value || ''));
+if (bulkPasteBtn) bulkPasteBtn.addEventListener('click', pasteBulk);
+if (bulkClearBtn) bulkClearBtn.addEventListener('click', clearBulk);
+if (bulkDownloadBtn) bulkDownloadBtn.addEventListener('click', startBulkDownload);
+if (bulkExportBtn) bulkExportBtn.addEventListener('click', exportBulk);
+if (bulkImportBtn) bulkImportBtn.addEventListener('click', () => bulkImportFile?.click());
+if (bulkImportFile) bulkImportFile.addEventListener('change', importBulk);
 
-// Knob drag interactivity for tuning-dial
-if (tuningDial) {
-    let dragging = false, baseDeg = 0;
-    let clickAudio = null;
-    function playKnobClick() {
-        if (!clickAudio) {
-            clickAudio = new Audio('/sounds/knob_click.mp3');
-            clickAudio.volume = 0.33;
-        }
-        if (!tapeSounds.insert.muted) clickAudio.play();
+function isValidYouTubeUrl(url){
+  return url.includes('youtube.com') || url.includes('youtu.be');
+}
+
+function updateStatus(message, type = ''){
+  if (!statusMessage) return;
+  statusMessage.textContent = message;
+  statusMessage.className = 'status-message';
+  if (type) statusMessage.classList.add(type);
+}
+
+async function analyzeVideo(){
+  const url = (videoUrlInput?.value || '').trim();
+  if (!url) { updateStatus('Please enter a YouTube URL', 'error'); return; }
+  if (!isValidYouTubeUrl(url)) { updateStatus('Please enter a valid YouTube URL', 'error'); return; }
+
+  updateStatus('Analyzing video...', 'processing');
+  selectedFormat = null;
+  if (downloadBtn) downloadBtn.disabled = true;
+
+  try {
+    setAnalyzing(true);
+    const resp = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Analyze failed');
+
+    availableFormats = data.formats || [];
+    analyzedUrl = url;
+    renderPreview(data, url);
+    renderFormats();
+    updateStatus('Analysis complete. Select a format to download.', 'success');
+    toast('Analysis complete', 'success');
+  } catch (e){
+    updateStatus('Error analyzing: ' + e.message, 'error');
+    toast(e.message, 'error');
+  } finally { setAnalyzing(false); }
+}
+
+function switchFormatType(type){
+  currentFormatType = type;
+  if (mp4Btn) mp4Btn.classList.toggle('active', type==='mp4');
+  if (mp3Btn) mp3Btn.classList.toggle('active', type==='mp3');
+  renderFormats();
+  selectedFormat = null;
+  if (downloadBtn) downloadBtn.disabled = true;
+}
+
+function renderFormats(){
+  if (!formatsGrid) return;
+  formatsGrid.innerHTML = '';
+  let filtered = availableFormats.filter(f => currentFormatType==='mp4' ? f.format === 'MP4' : f.format === 'MP3' || f.type === 'audio');
+  const minQ = parseInt(qualityFilterEl?.value || '');
+  if (!isNaN(minQ)) {
+    filtered = filtered.filter(f => parseQualityToNumber(f.quality) >= minQ);
+  }
+  const sortBy = (sortByEl?.value) || 'quality_desc';
+  filtered.sort((a,b) => sortFormats(a,b,sortBy));
+  if (!filtered.length){
+    formatsGrid.innerHTML = '<p>No formats available for this video.</p>';
+    if (resultsSection) resultsSection.style.display = 'block';
+    return;
+  }
+  filtered.forEach(f => {
+    const card = document.createElement('div');
+    card.className = 'format-card';
+    card.innerHTML = `<div class="format-name">${f.quality || f.format || ''}</div><div class="format-details"><span class="chip">${f.codec || ''}</span><span>${f.size || ''}</span></div>`;
+    card.addEventListener('click', () => selectFormat(f, card));
+    formatsGrid.appendChild(card);
+  });
+  if (resultsSection) resultsSection.style.display = 'block';
+}
+
+function selectFormat(format, card){
+  document.querySelectorAll('.format-card').forEach(el => el.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedFormat = format;
+  if (downloadBtn) downloadBtn.disabled = false;
+  updateStatus(`Selected: ${format.quality || format.format} ${format.size ? ' - ' + format.size : ''}`, 'success');
+  toast(`Selected ${format.quality || format.format}`, 'info');
+}
+
+function downloadVideo(){
+  if (!selectedFormat){ updateStatus('Please select a format first', 'error'); return; }
+  if (!analyzedUrl){ updateStatus('Analyze a URL first', 'error'); return; }
+  updateStatus('Preparing download...', 'processing');
+  if (downloadBtn) downloadBtn.disabled = true;
+  const formatType = currentFormatType === 'mp3' ? 'mp3' : 'mp4';
+  const body = {
+    url: analyzedUrl,
+    format: selectedFormat.format,
+    quality: selectedFormat.quality,
+    itag: selectedFormat.itag,
+    formatType
+  };
+  fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(async (resp) => {
+    if (!resp.ok) {
+      const problem = await safeJson(resp);
+      throw new Error(problem.error || 'Download failed');
     }
-    tuningDial.addEventListener('mousedown', (e) => {
-        dragging = true; playKnobClick();
-        tuningDial.classList.add('rotating');
-        document.body.style.userSelect = 'none';
-    });
-    document.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        const min = -45, max = 45; // deg
-        let pct = Math.min(Math.max((e.clientX / window.innerWidth - 0.5) * 2, -1), 1);
-        let deg = Math.round(pct * 45);
-        tuningDial.style.transform = `rotate(${deg}deg)`;
-        if (deg > 25) tuningDial.classList.add('power-on');
-        else tuningDial.classList.remove('power-on');
-        baseDeg = deg;
-    });
-    document.addEventListener('mouseup', () => {
-        if (!dragging) return;
-        playKnobClick();
-        dragging = false;
-        document.body.style.userSelect = '';
-        tuningDial.classList.remove('rotating');
-        tuningDial.style.transform = `rotate(${baseDeg}deg)`;
-    });
-    tuningDial.addEventListener('mouseleave', () => {
-        if (!dragging) return;
-        dragging = false;
-        document.body.style.userSelect = '';
-        tuningDial.classList.remove('rotating');
-        tuningDial.style.transform = `rotate(0deg)`;
-    });
-}
-
-// Cassette label editing
-const tapeLabels = {};
-function tapeId() {
-    // crude unique ID, use URL for now
-    if (formats[0] && formats[0].url) return formats[0].url.split('//').pop().split('/').join('').split('?')[0].slice(0,25);
-    return 'notape';
-}
-function installTapeLabelEditable() {
-    if (!tapeFace) return;
-    const curId = tapeId();
-    const curLbl = tapeLabels[curId] || '';
-    // Find .tape-format in tapeFace and wrap with .tape-editable-label if not already
-    const labelDiv = tapeFace.querySelector('.tape-format');
-    if (!labelDiv) return;
-    let wrap = labelDiv.querySelector('.tape-editable-label');
-    if (!wrap) {
-        wrap = document.createElement('span');
-        wrap.className = 'tape-editable-label';
-        wrap.tabIndex = 0;
-        wrap.textContent = curLbl || labelDiv.textContent.trim() || 'Untitled';
-        labelDiv.textContent = '';
-        labelDiv.appendChild(wrap);
-        wrap.addEventListener('click', enableEdit);
-        wrap.addEventListener('keydown', (e) => { if (e.key=='Enter'){ enableEdit(e); } });
-    }
-    function enableEdit(e) {
-        e.preventDefault();
-        wrap.classList.add('editing');
-        const input = document.createElement('input');
-        input.value = wrap.textContent;
-        wrap.textContent = '';
-        wrap.appendChild(input);
-        input.focus(); input.setSelectionRange(0, input.value.length);
-        input.addEventListener('blur', saveEdit);
-        input.addEventListener('keydown', function(ev){
-            if (ev.key=='Enter'){
-                saveEdit(ev);
-            }
-        });
-    }
-    function saveEdit(e) {
-        const val = wrap.querySelector('input')?.value?.substring(0,42) || '';
-        tapeLabels[curId] = val || 'Untitled';
-        wrap.classList.remove('editing');
-        wrap.textContent = tapeLabels[curId];
-        wrap.tabIndex = 0;
-    }
-}
-// augment updateTapeFace to always call installTapeLabelEditable
-const _origUTF = updateTapeFace;
-updateTapeFace = function(format){
-    _origUTF.call(this, format);
-    installTapeLabelEditable();
-};
-
-
-// Tape recorder state
-let formats = [];
-let currentIndex = 0;
-let spinning = false;
-let spinTimer = null;
-let isPlaying = false;
-// queue of tapes: { url, formats }
-let tapesQueue = [];
-let currentTape = -1;
-let tapeSounds = {
-    insert: new Audio('/sounds/tape_insert.mp3'),
-    play: new Audio('/sounds/tape_play.mp3'),
-    stop: new Audio('/sounds/tape_stop.mp3'),
-    rewind: new Audio('/sounds/tape_rewind.mp3'),
-    fastForward: new Audio('/sounds/tape_fast_forward.mp3')
-};
-
-// Initialize tape sounds with default volume
-Object.values(tapeSounds).forEach(sound => {
-    sound.volume = 0.5;
-    // Create silent versions to preload
-    sound.muted = true;
-    sound.play().catch(() => {});
-    sound.muted = false;
-});
-
-function setLED(which) {
-  ledPlay.classList.remove('active');
-  ledStop.classList.remove('active');
-  ledSpin.classList.remove('active');
-  if (which === 'play') ledPlay.classList.add('active');
-  if (which === 'stop') ledStop.classList.add('active');
-  if (which === 'spin') ledSpin.classList.add('active');
-}
-
-function resetLED(){ 
-    ledPlay.classList.remove('active'); 
-    ledStop.classList.remove('active'); 
-    ledSpin.classList.remove('active'); 
-}
-
- function updateStatus(msg) {
-    statusMessage.textContent = msg;
-    // brief CRT glow flicker to simulate VFD
-    statusMessage.classList.add('crt-glow');
-    setTimeout(()=>statusMessage.classList.remove('crt-glow'), 300);
- }
-
-function showLoading(show = true) {
-    if (loadingAnimation) {
-        if (show) {
-            loadingAnimation.classList.remove('hidden');
-            tapeWindow.classList.add('processing');
-        } else {
-            loadingAnimation.classList.add('hidden');
-            tapeWindow.classList.remove('processing');
-        }
-    }
-}
-
-function updateToggleBtns() {
-    mp4Btn.classList.toggle('active', currentFormatType==='mp4');
-    mp3Btn.classList.toggle('active', currentFormatType==='mp3');
-}
-
-function playTapeSound(soundType) {
-    // Stop any currently playing sounds
-    Object.values(tapeSounds).forEach(sound => {
-        sound.pause();
-        sound.currentTime = 0;
-    });
-    
-    // Play the requested sound
-    if (tapeSounds[soundType]) {
-        tapeSounds[soundType].play().catch(err => console.log('Audio playback error:', err));
-    }
-}
-
-function startTapeAnimation() {
-    tapeWindow.classList.add('spinning');
-    spinning = true;
-    setLED('spin');
-}
-
-function stopTapeAnimation() {
-    // apply mechanical slowing then bounce stop
-    if (tapeWindow.classList.contains('spinning')) {
-        tapeWindow.classList.add('slowing');
-        setTimeout(()=>{
-            tapeWindow.classList.remove('spinning');
-            tapeWindow.classList.remove('slowing');
-            tapeWindow.classList.add('inertia-stop');
-            setTimeout(()=>{
-                tapeWindow.classList.remove('inertia-stop');
-            }, 620);
-        }, 500);
-    } else {
-        tapeWindow.classList.remove('slowing');
-        tapeWindow.classList.remove('inertia-stop');
-    }
-    spinning = false;
-    resetLED();
-}
-
-function setRecordLED(on) {
-    if (!ledRec) return;
-    ledRec.classList.toggle('active', !!on);
-}
-
-function setFastSpin(on) {
-    tapeWindow.classList.toggle('fast', !!on);
-}
-
-function animateInsert() {
-    tapeWindow.classList.remove('ejecting');
-    tapeWindow.classList.add('inserting');
-    setTimeout(()=>{
-        tapeWindow.classList.remove('inserting');
-        tapeWindow.classList.add('inserted');
-        
-        // 3D transform effect
-        tapeFace.style.transition = "all 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1)";
-        tapeFace.style.transform = "translate(-50%, -50%) scale(1) translateZ(0) rotateX(0deg)";
-        tapeFace.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-    }, 400);
-}
-
-function animateEject(callback) {
-    tapeWindow.classList.remove('inserted');
-    tapeWindow.classList.add('ejecting');
-    
-    // 3D transform effect
-    tapeFace.style.transition = "all 0.7s cubic-bezier(0.2, 0.8, 0.3, 1)";
-    tapeFace.style.transform = "translate(-50%, -115%) scale(0.94) translateZ(30px) rotateX(25deg)";
-    tapeFace.style.boxShadow = "0 40px 60px rgba(0,0,0,0.6)";
-    
-    setTimeout(()=>{
-        tapeWindow.classList.remove('ejecting');
-        if (typeof callback === 'function') callback();
-    }, 650);
-}
-
-function animateHalfEject() {
-    // partial mechanical bounce
-    tapeWindow.classList.remove('inserted');
-    tapeWindow.classList.add('half-eject');
-    setTimeout(()=>{
-        tapeWindow.classList.remove('half-eject');
-    }, 480);
-}
-
-function loadTape(tape) {
-    if (!tape) return;
-    formats = tape.formats || [];
-    currentIndex = 0;
-    renderDisk();
-}
-
-function renderDisk() {
-    diskArea.innerHTML = '';
-    if (formats.length === 0) return;
-    const selected = formats[currentIndex];
-    const circle = document.createElement('div');
-    circle.className = 'disk-outer';
-    const total = formats.length;
-    const R = 104;
-    formats.forEach((fmt, i) => {
-        // Only show selected+neighbor disks (for clarity)
-        if (total > 1 && Math.abs(i - currentIndex) > 1 && Math.abs(i - currentIndex)!==total-1) return;
-        let rel = i - currentIndex;
-        if (rel < -1) rel += total;
-        if (rel > 1) rel -= total;
-        const angle = rel * 48 * Math.PI / 180;
-        const x = Math.sin(angle) * R + (rel === 0 ? 0 : (rel * 12));
-        const y = Math.cos(angle) * R + (rel === 0 ? 0 : -14);
-        const item = document.createElement('div');
-        item.className = 'disk-item' + (i===currentIndex?' selected':'') + (Math.abs(rel)<1 ? '' : ' neighbor');
-        item.style.transform = `translate(${x}px, ${y}px) scale(${i===currentIndex?1.13:0.75})`;
-        item.style.zIndex = (10-Math.abs(rel))+'';
-        item.innerHTML = `<div class='disk-label'>${fmt.format??''} <span>${fmt.quality??''}</span></div>`;
-        item.onclick = ()=>{ 
-            if (i!==currentIndex) {
-                playTapeSound('rewind');
-                currentIndex=i; 
-                renderDisk();
-            }
-        }
-        circle.appendChild(item);
-    });
-    diskArea.appendChild(circle);
-
-    // Update tape face with format info
-    updateTapeFace(selected);
-
-    // Info box
-    let info = document.getElementById('format-info-vintage');
-    if (!info) {
-        info = document.createElement('div');
-        info.id = 'format-info-vintage';
-        info.className = 'format-vintage-info';
-        diskArea.parentNode.insertBefore(info, diskArea.nextSibling);
-    }
-    const f = selected;
-    info.innerHTML = `<div class='fmt-meta-bar'><b>${f.format||''}</b> <span>/</span> <b>${f.quality||''}</b> <span>/</span> <b>${f.size||'--'}</b></div><div class='fmt-codec-row'>${f.codec ? 'Codec: <span>'+f.codec+'</span>' : ''}</div>`;
-    info.style.display = 'block';
-    // Gray out tape controls if only one format
-    [backBtn,nextBtn].forEach(btn=>{btn.disabled = (formats.length<=1);});
-
-    // Update footer info display if present
-    const footer = document.querySelector('.footer');
-    if (footer && f) {
-        const meta = `${f.format || ''} | ${f.quality || ''} | ${f.size || '--'} | codec: ${f.codec || '—'}`;
-        footer.textContent = meta;
-    }
-}
-
-function updateTapeFace(format) {
-    if (!tapeFace) return;
-    
-    // Update tape face with format info
-    let formatLabel = format ? `${format.format || ''} ${format.quality || ''}` : 'No Format';
-    let sizeLabel = format && format.size ? format.size : '';
-    
-    tapeFace.innerHTML = `
-        <div class="tape-label">
-            <div class="tape-format">${formatLabel}</div>
-            <div class="tape-size">${sizeLabel}</div>
-        </div>
-    `;
-}
-
-function selectNext(){
-    if (tapesQueue.length > 1) {
-        playTapeSound('fastForward');
-        if (selectorDiskArea) selectorDiskArea.classList.add('output-hidden');
-        animateEject(()=>{
-            currentTape = (currentTape + 1) % tapesQueue.length;
-            animateInsert();
-            loadTape(tapesQueue[currentTape]);
-            updateStatus('Loaded next tape.');
-            if (selectorDiskArea) { selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }
-        });
-        return;
-    }
-    if (formats.length<2) return;
-    currentIndex = (currentIndex+1)%formats.length;
-    playTapeSound('fastForward');
-    if (selectorDiskArea) {
-        selectorDiskArea.classList.add('output-hidden');
-        setTimeout(()=>{ renderDisk(); selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }, 220);
-    } else {
-        renderDisk();
-    }
-}
-function selectBack(){
-    if (tapesQueue.length > 1) {
-        playTapeSound('rewind');
-        if (selectorDiskArea) selectorDiskArea.classList.add('output-hidden');
-        animateEject(()=>{
-            currentTape = (currentTape - 1 + tapesQueue.length) % tapesQueue.length;
-            animateInsert();
-            loadTape(tapesQueue[currentTape]);
-            updateStatus('Loaded previous tape.');
-            if (selectorDiskArea) { selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }
-        });
-        return;
-    }
-    if (formats.length<2) return;
-    currentIndex = (currentIndex - 1 + formats.length)%formats.length;
-    playTapeSound('rewind');
-    if (selectorDiskArea) {
-        selectorDiskArea.classList.add('output-hidden');
-        setTimeout(()=>{ renderDisk(); selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }, 220);
-    } else {
-        renderDisk();
-    }
-}
-
-function startDownload() {
-    if (formats.length === 0) return;
-    const format = formats[currentIndex];
-    if (!format || !format.url) {
-        updateStatus('No download URL available');
-        return;
-    }
-    
-    // Visual and audio feedback
-    playTapeSound('play');
-    startTapeAnimation();
-    setLED('play');
-    setRecordLED(true);
-    setFastSpin(true);
-    if (tuningDial) tuningDial.classList.add('power-on');
-    
-    // Create a temporary link and trigger download
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = format.url;
-    a.download = format.filename || 'download';
+    const filename = extractFilename(resp.headers.get('Content-Disposition')) ||
+      `soldown-${Date.now()}.${formatType}`;
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    
-    // Show download message with tape counts
-    const totalTapes = tapesQueue.length || 1;
-    const tapeIndexHuman = (currentTape >= 0 ? currentTape : 0) + 1;
-    const meta = `${format.quality || ''}${format.size ? ", " + format.size : ''}`;
-    updateStatus(`Recording... Tape ${tapeIndexHuman} / ${totalTapes} — ${meta}`);
-    
-    // Simulate completion sequence: stop, green, eject
-    setTimeout(() => {
-        stopTapeAnimation();
-        setRecordLED(false);
-        setLED('stop');
-        setFastSpin(false);
-        updateStatus('Download complete — Tape saved to your library.');
-        animateEject(()=>{
-            // Remove current tape from queue once done
-            if (currentTape >=0) {
-                tapesQueue.splice(currentTape,1);
-                if (tapesQueue.length) {
-                    currentTape = currentTape % tapesQueue.length;
-                    animateInsert();
-                    loadTape(tapesQueue[currentTape]);
-                } else {
-                    formats = [];
-                    currentIndex = 0;
-                    diskArea.innerHTML = '';
-                }
-            }
-        });
-    }, 3000);
-}
-function doSpin() {
-    if (spinning) return; spinning=true; setLED('spin');
-    spinTimer = setInterval(()=>{ selectNext(); }, 1350);
-    document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='running');
-}
-function stopSpin() {
-    spinning=false; setLED('stop');
-    clearInterval(spinTimer);
-    document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='paused');
+    a.remove();
+    URL.revokeObjectURL(url);
+    updateStatus(`Download started: ${selectedFormat.quality || selectedFormat.format}`, 'success');
+    saveRecent({ title: previewTitle?.textContent || 'Video', format: formatType.toUpperCase(), quality: selectedFormat.quality || '', ts: Date.now() });
+    renderRecent();
+    toast('Download started', 'success');
+  }).catch((e) => {
+    updateStatus('Error: ' + e.message, 'error');
+    toast(e.message, 'error');
+  }).finally(() => {
+    if (downloadBtn) downloadBtn.disabled = false;
+  });
 }
 
-function stopCurrentAction() {
-    // Visual and audio feedback
-    playTapeSound('stop');
-    stopTapeAnimation();
-    setLED('stop');
-    updateStatus('Stopped');
+function setAnalyzing(isLoading){
+  if (!analyzeBtn) return;
+  analyzeBtn.disabled = !!isLoading;
+  if (isLoading) analyzeBtn.innerHTML = '<span class="loading"></span>'; else analyzeBtn.textContent = 'Analyze';
 }
 
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
-    // Hide splash screen after a delay
-    setTimeout(() => {
-        splashScreen.style.animation = 'fadeOut 0.5s ease-out forwards';
-        setTimeout(() => {
-            splashScreen.style.display = 'none';
-            mainApp.style.display = 'block';
-            if (tuningDial) tuningDial.classList.add('power-on');
-        }, 500);
-    }, 1500);
-});
-
-
-// Format toggle buttons
-mp4Btn.addEventListener('click', () => {
-    currentFormatType = 'mp4';
-    updateToggleBtns();
-    playTapeSound('stop');
-    // Fetch formats again if URL is present
-    if (urlInput.value) {
-        insertBtn.click();
+async function pasteFromClipboard(){
+  try {
+    const text = await navigator.clipboard.readText();
+    if (videoUrlInput) {
+      videoUrlInput.value = text || '';
+      videoUrlInput.focus();
     }
-});
+  } catch(_e) {
+    updateStatus('Clipboard not available. Paste with Ctrl+V.', 'error');
+  }
+}
 
-mp3Btn.addEventListener('click', () => {
-    currentFormatType = 'mp3';
-    updateToggleBtns();
-    playTapeSound('stop');
-    // Fetch formats again if URL is present
-    if (urlInput.value) {
-        insertBtn.click();
+// Init
+updateStatus('Ready to download');
+initTheme();
+renderRecent();
+initBulk();
+initSplashAndTransitions();
+initScrollAppear();
+initRipples();
+initAccent();
+
+function extractFilename(contentDisposition){
+  if (!contentDisposition) return '';
+  const match = /filename="?([^";]+)"?/i.exec(contentDisposition);
+  return match ? match[1] : '';
+}
+
+async function safeJson(resp){
+  try { return await resp.json(); } catch(_e) { return {}; }
+}
+
+function initAccent(){
+  accentButtons.forEach(btn => {
+    btn.addEventListener('click', () => setAccent(btn.getAttribute('data-accent')));
+  });
+  const saved = localStorage.getItem('soldown_accent');
+  if (saved) setAccent(saved, true);
+}
+
+function setAccent(name, skipSave){
+  document.body.classList.remove('accent-red','accent-blue','accent-violet','accent-emerald');
+  const cls = `accent-${name}`;
+  document.body.classList.add(cls);
+  if (!skipSave) localStorage.setItem('soldown_accent', name);
+}
+
+function initScrollAppear(){
+  const targets = document.querySelectorAll('.main-card, .format-card, .recent-item, .bulk-item');
+  if (!('IntersectionObserver' in window)) { targets.forEach(t=>t.classList.add('appears')); return; }
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting){ e.target.classList.add('appears'); io.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+  targets.forEach(t => io.observe(t));
+}
+
+function initRipples(){
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn, .download-btn, .format-btn');
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const span = document.createElement('span');
+    span.className = 'ripple';
+    span.style.left = (e.clientX - rect.left) + 'px';
+    span.style.top = (e.clientY - rect.top) + 'px';
+    btn.appendChild(span);
+    setTimeout(()=> span.remove(), 650);
+  });
+}
+
+function renderPreview(data, url){
+  if (!previewCard) return;
+  const title = data.title || 'Video';
+  const duration = data.duration ? formatDuration(data.duration) : '';
+  const platform = (data.platform || '').toString();
+  previewTitle.textContent = title;
+  previewDuration.textContent = duration;
+  previewPlatform.textContent = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'Unknown';
+  const ytId = extractYouTubeId(url);
+  if (ytId) {
+    previewThumb.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+  } else {
+    previewThumb.removeAttribute('src');
+  }
+  previewCard.style.display = 'grid';
+}
+
+function quickPreviewFromInput(){
+  if (!previewCard) return;
+  const url = (videoUrlInput?.value || '').trim();
+  if (!url) { previewCard.style.display = 'none'; return; }
+  const ytId = extractYouTubeId(url);
+  if (ytId){
+    previewTitle.textContent = 'Preview';
+    previewDuration.textContent = '';
+    previewPlatform.textContent = 'YouTube';
+    previewThumb.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    previewCard.style.display = 'grid';
+  }
+}
+
+function extractYouTubeId(url){
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
+    if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
+  } catch(_e) {}
+  return '';
+}
+
+function formatDuration(sec){
+  const s = Math.max(0, parseInt(sec, 10) || 0);
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const ss = s%60;
+  return (h? h+':':'') + (h? String(m).padStart(2,'0'):m) + ':' + String(ss).padStart(2,'0');
+}
+
+function parseQualityToNumber(q){
+  if (!q) return 0;
+  const match = /([0-9]{3,4})p/i.exec(q);
+  return match ? parseInt(match[1],10) : 0;
+}
+
+function parseSizeToNumberMB(size){
+  if (!size || size === 'N/A') return 0;
+  const m = /([0-9.]+)\s*(GB|MB|KB)/i.exec(size);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  const unit = m[2].toUpperCase();
+  if (unit === 'GB') return n * 1024;
+  if (unit === 'MB') return n;
+  if (unit === 'KB') return n / 1024;
+  return 0;
+}
+
+function sortFormats(a,b,mode){
+  if (mode === 'size_desc') return parseSizeToNumberMB(b.size) - parseSizeToNumberMB(a.size);
+  if (mode === 'size_asc') return parseSizeToNumberMB(a.size) - parseSizeToNumberMB(b.size);
+  return parseQualityToNumber(b.quality) - parseQualityToNumber(a.quality);
+}
+
+function toggleTheme(){
+  document.body.classList.add('theme-anim');
+  const next = document.body.classList.toggle('light');
+  localStorage.setItem('soldown_theme', next ? 'light' : 'dark');
+  setTimeout(() => document.body.classList.remove('theme-anim'), 350);
+}
+
+function initSplashAndTransitions(){
+  // Page enter animation
+  document.body.classList.add('page-enter');
+  setTimeout(() => document.body.classList.remove('page-enter'), 260);
+
+  // Splash auto-hide: CSS anim already hides; remove node after delay
+  const splash = document.getElementById('splash');
+  if (splash){
+    const seen = localStorage.getItem('soldown_seenSplash') === '1';
+    if (seen){
+      splash.remove();
+    } else {
+      setTimeout(() => { splash.style.display = 'none'; splash.remove(); localStorage.setItem('soldown_seenSplash','1'); }, 1300);
     }
-});
+  }
 
-// Control buttons
-backBtn.addEventListener('click', () => {selectBack();});
-nextBtn.addEventListener('click', () => {selectNext();});
-playBtn.addEventListener('mousedown', () => {playBtn.classList.add('pressed');});
-playBtn.addEventListener('mouseup', () => {playBtn.classList.remove('pressed');});
-playBtn.addEventListener('mouseleave', () => {playBtn.classList.remove('pressed');});
-playBtn.addEventListener('click', () => {startDownload();});
-stopBtn.addEventListener('mousedown', () => {stopBtn.classList.add('pressed');});
-stopBtn.addEventListener('mouseup', () => {stopBtn.classList.remove('pressed');});
-stopBtn.addEventListener('mouseleave', () => {stopBtn.classList.remove('pressed');});
-stopBtn.addEventListener('click', () => {stopCurrentAction();});
-
-// Sound toggle
-if (soundToggleBtn) {
-    soundToggleBtn.addEventListener('click', ()=>{
-        const mute = !tapeSounds.insert.muted;
-        Object.values(tapeSounds).forEach(s=> s.muted = mute);
-        soundToggleBtn.textContent = mute ? 'SND✕' : 'SND';
+  // Intercept same-origin nav links for fade-out
+  const links = document.querySelectorAll('a.nav-link');
+  links.forEach(a => {
+    a.addEventListener('click', (e) => {
+      const url = new URL(a.href, location.href);
+      if (url.origin === location.origin){
+        e.preventDefault();
+        document.body.classList.add('page-exit');
+        // Clear any toasts to avoid stray text during transition
+        if (toastContainer) toastContainer.innerHTML = '';
+        setTimeout(() => { location.href = a.href; }, 200);
+      }
     });
+  });
 }
 
-// URL input and insert button
-insertBtn.addEventListener('click', async () => {
-    const url = urlInput.value.trim();
-    if (!url) {
-        updateStatus('Insert a video URL.');
-        return;
-    }
-    
-    playTapeSound('insert');
-    startTapeAnimation();
-    animateInsert();
-    showLoading(true);
-    setLED('spin');
-    updateStatus('Analyzing link...');
-    
-    try {
-        const resp = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({url})
-        });
-        const data = await resp.json();
-        if(!resp.ok) throw new Error(data.error || 'Analyze failed');
-        
-        showLoading(false);
-        const analyzedFormats = (currentFormatType === 'mp4') ? data.formats.filter(f => f.format === 'MP4') : data.formats;
-        
-        if (!analyzedFormats.length) { 
-            updateStatus('No formats found.'); 
-            resetLED(); 
-            return; 
+function initTheme(){
+  const saved = localStorage.getItem('soldown_theme');
+  if (saved === 'light') document.body.classList.add('light');
+}
+
+function toast(message, type='info'){
+  if (!toastContainer) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = message;
+  toastContainer.appendChild(el);
+  setTimeout(() => { el.remove(); }, 3000);
+}
+
+function saveRecent(item){
+  const key = 'soldown_recent';
+  const list = JSON.parse(localStorage.getItem(key) || '[]');
+  list.unshift(item);
+  const trimmed = list.slice(0,10);
+  localStorage.setItem(key, JSON.stringify(trimmed));
+}
+
+function renderRecent(){
+  if (!recentList) return;
+  const key = 'soldown_recent';
+  const list = JSON.parse(localStorage.getItem(key) || '[]');
+  if (!list.length) { recentList.innerHTML = '<p class="recent-meta">No downloads yet.</p>'; return; }
+  recentList.innerHTML = '';
+  list.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'recent-item';
+    const d = new Date(item.ts);
+    div.innerHTML = `<div class=\"recent-title\">${item.title}</div><div class=\"recent-meta\">${item.format}${item.quality? ' · '+item.quality : ''} · ${d.toLocaleString()}</div>`;
+    const del = document.createElement('button');
+    del.className = 'remove';
+    del.textContent = 'Delete';
+    del.addEventListener('click', () => deleteRecent(idx));
+    div.appendChild(del);
+    recentList.appendChild(div);
+  });
+}
+
+function deleteRecent(index){
+  const key = 'soldown_recent';
+  const list = JSON.parse(localStorage.getItem(key) || '[]');
+  if (index >=0 && index < list.length){
+    list.splice(index,1);
+    localStorage.setItem(key, JSON.stringify(list));
+    renderRecent();
+  }
+}
+
+function globalShortcuts(e){
+  if (e.ctrlKey && e.key.toLowerCase() === 'l'){ e.preventDefault(); videoUrlInput?.focus(); }
+  if (e.key === '1'){ switchFormatType('mp4'); }
+  if (e.key === '2'){ switchFormatType('mp3'); }
+  if (e.key.toLowerCase() === 'd'){ if (!downloadBtn?.disabled) downloadVideo(); }
+}
+
+// =============== BULK DOWNLOADER ===============
+function initBulk(){
+  const saved = JSON.parse(localStorage.getItem('soldown_bulk') || '[]');
+  bulkLinks = Array.isArray(saved) ? saved : [];
+  renderBulkList();
+}
+
+function persistBulk(){
+  localStorage.setItem('soldown_bulk', JSON.stringify(bulkLinks));
+  if (bulkDownloadBtn) bulkDownloadBtn.disabled = bulkLinks.length === 0;
+}
+
+function addBulk(text){
+  const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  let added = 0;
+  for (const ln of lines){
+    if (isValidYouTubeUrl(ln) && !bulkLinks.includes(ln)) { bulkLinks.push(ln); added++; }
+  }
+  if (bulkInput) bulkInput.value = '';
+  if (added>0){ toast(`Added ${added} link(s)`, 'success'); renderBulkList(); persistBulk(); }
+}
+
+async function pasteBulk(){
+  try {
+    const text = await navigator.clipboard.readText();
+    addBulk(text || '');
+  } catch(_e) { toast('Clipboard not available', 'error'); }
+}
+
+function clearBulk(){
+  bulkLinks = [];
+  renderBulkList();
+  persistBulk();
+}
+
+function removeBulk(url){
+  bulkLinks = bulkLinks.filter(u => u !== url);
+  renderBulkList();
+  persistBulk();
+}
+
+function renderBulkList(){
+  if (!bulkList) return;
+  if (bulkLinks.length === 0){ bulkList.innerHTML = '<p class="recent-meta">No links added yet.</p>'; if (bulkDownloadBtn) bulkDownloadBtn.disabled = true; return; }
+  bulkList.innerHTML = '';
+  bulkLinks.forEach(u => {
+    const row = document.createElement('div');
+    row.className = 'bulk-item appears';
+    const ytId = extractYouTubeId(u);
+    const thumb = ytId ? `<img class=\"bulk-thumb\" src=\"https://img.youtube.com/vi/${ytId}/mqdefault.jpg\" alt=\"thumb\">` : '';
+    row.innerHTML = `${thumb}<span class=\"url\">${u}</span>`;
+    const remove = document.createElement('button');
+    remove.className = 'remove';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => removeBulk(u));
+    row.appendChild(remove);
+    bulkList.appendChild(row);
+    // Try enrich with title
+    analyzeForBulk(u).then(meta => {
+      if (meta && meta.title){
+        const t = document.createElement('div');
+        t.className = 'recent-meta';
+        t.textContent = meta.title;
+        row.insertBefore(t, remove);
+      }
+    }).catch(()=>{});
+  });
+  if (bulkDownloadBtn) bulkDownloadBtn.disabled = false;
+}
+
+async function startBulkDownload(){
+  if (!bulkLinks.length) return;
+  const type = (bulkTypeEl?.value || 'mp4').toLowerCase();
+  const prefQ = parseInt(bulkQualityEl?.value || '1080', 10);
+  if (bulkProgress) bulkProgress.textContent = `Preparing bulk download of ${bulkLinks.length} video(s)...`;
+
+  try {
+    const first = bulkLinks[0];
+    const info = await analyzeForBulk(first);
+    const candidates = (info.formats || []).filter(f => type==='mp3' ? (f.format==='MP3' || f.type==='audio') : f.format==='MP4');
+    if (!candidates.length) throw new Error('No formats available to base selection on');
+    const target = pickBestByQuality(candidates, prefQ);
+    const itag = target.itag;
+
+    let done = 0;
+    for (const u of bulkLinks){
+      try {
+        await downloadOne(u, type, itag, prefQ);
+        done++;
+        if (bulkProgress){
+          const pct = Math.round(done / bulkLinks.length * 100);
+          const fill = bulkProgress.querySelector('.progress-fill');
+          const text = bulkProgress.querySelector('.progress-text');
+          if (fill) fill.style.width = pct + '%';
+          if (text) text.textContent = `Downloading... (${done}/${bulkLinks.length})`;
         }
-        
-        // push to queue and load
-        tapesQueue.push({ url, formats: analyzedFormats });
-        currentTape = tapesQueue.length - 1;
-        formats = analyzedFormats;
-        currentIndex = 0;
-        renderDisk();
-        updateStatus('Ready to download. Use rotary controls to select format.');
-        stopTapeAnimation();
-        setLED('play');
-    } catch(e) {
-        showLoading(false); 
-        updateStatus('Error analyzing: ' + e.message); 
-        stopTapeAnimation();
-        setLED('stop');
+      } catch(err){
+        toast(`Failed: ${u.substring(0,42)}...`, 'error');
+      }
     }
-});
-
-// Add tape cassette visual effects
-urlInput.addEventListener('focus', () => {
-    tapeWindow.classList.add('input-focus');
-});
-
-urlInput.addEventListener('blur', () => {
-    tapeWindow.classList.remove('input-focus');
-});
-// Eject halfway when input cleared
-urlInput.addEventListener('input', () => {
-    const val = urlInput.value.trim();
-    if (!val && tapeWindow.classList.contains('inserted')) {
-        playTapeSound('stop');
-        animateHalfEject();
-        updateStatus('Tape partially ejected — insert a link to load.');
-    }
-});
-updateToggleBtns();
-
-// On Enter in input
-urlInput.addEventListener('keydown',e=>{if(e.key==='Enter'){insertBtn.click();}});
-// Initial setup
-renderDisk();
-resetLED();
-updateStatus('Insert video link, select format, spin the deck!');
-document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='paused');
-
-// Apply CRT flicker (safely, periodically on .main-status)
-function crtFlicker() {
-    const ms = document.querySelector('.main-status.crt-glow');
-    if (ms) {
-        ms.style.opacity = (0.97 + Math.random() * 0.07) + '';
-        ms.style.filter = `blur(${0.2 + Math.random() * 0.7}px)`;
-    }
-    setTimeout(crtFlicker, 260 + Math.random() * 340);
-}
-crtFlicker();
-
-function ejectCurrentTape() {
-    if (!formats.length) return;
-    playTapeSound('eject');
-    animateEject(()=>{
-        if (tapesQueue.length && currentTape >= 0) {
-            tapesQueue.splice(currentTape, 1);
-            if (tapesQueue.length) {
-                currentTape = Math.max(0, currentTape % tapesQueue.length);
-                animateInsert();
-                loadTape(tapesQueue[currentTape]);
-            } else {
-                formats = [];
-                currentIndex = 0;
-                diskArea.innerHTML = '';
-            }
-        }
-    });
-}
-if (ejectBtn) {
-    ejectBtn.addEventListener('click', () => {
-        // Trigger download of currently selected format
-        startDownload();
-    });
+    toast('Bulk downloads complete', 'success');
+  } catch(e){
+    toast(e.message || 'Bulk failed', 'error');
+  }
 }
 
-// Disable EJECT if no tape
-function updateEjectState() {
-    if (ejectBtn) ejectBtn.disabled = !formats.length;
+function exportBulk(){
+  const data = bulkLinks.join('\n');
+  const blob = new Blob([data], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'soldown-links.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
-// Patch into all disk/tape changing points
-const _origRenderDisk = renderDisk;
-renderDisk = function() { _origRenderDisk.apply(this, arguments); updateEjectState(); }
+
+function importBulk(e){
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { addBulk(String(reader.result || '')); };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+async function analyzeForBulk(url){
+  const resp = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Analyze failed');
+  return data;
+}
+
+function pickBestByQuality(list, pref){
+  let best = list[0];
+  let bestDelta = Math.abs(parseQualityToNumber(best.quality) - pref);
+  for (const f of list){
+    const d = Math.abs(parseQualityToNumber(f.quality) - pref);
+    if (d < bestDelta){ best = f; bestDelta = d; }
+  }
+  return best;
+}
+
+async function downloadOne(url, type, itag, prefQ){
+  const body = { url, itag, formatType: type, format: type.toUpperCase(), quality: `${prefQ}p` };
+  const resp = await fetch('/api/download', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!resp.ok){ const p = await safeJson(resp); throw new Error(p.error || 'Download failed'); }
+  const blob = await resp.blob();
+  const obj = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const filename = extractFilename(resp.headers.get('Content-Disposition')) || `soldown-${Date.now()}.${type}`;
+  a.href = obj; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(obj);
+  saveRecent({ title: 'Bulk item', format: type.toUpperCase(), quality: `${prefQ}p`, ts: Date.now() });
+}
+
 
