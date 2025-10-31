@@ -151,6 +151,13 @@ body {
 .btn .ripple { position: absolute; pointer-events: none; border-radius: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,.25); animation: ripple .6s ease-out forwards; }
 @keyframes ripple { from { width: 0; height: 0; opacity: .6; } to { width: 240px; height: 240px; opacity: 0; } }
 .btn-ghost { background: rgba(255,255,255,0.04); }
+
+/* Improved theme toggle */
+#theme-toggle { font-weight: 800; letter-spacing: .02em; }
+body:not(.light) #theme-toggle { background: linear-gradient(180deg,#1f2430,#2a2f3a); box-shadow: 0 6px 16px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,0.08); }
+body.light #theme-toggle { background: linear-gradient(180deg,#fff,#f1f5f9); color:#0f172a; box-shadow: 0 6px 16px rgba(0,0,0,.15), inset 0 0 0 1px rgba(0,0,0,0.06); }
+#theme-toggle svg { margin-right: 6px; }
+#theme-toggle:hover { transform: translateY(-1px); }
 .btn:focus-visible, .format-btn:focus-visible, .analyze-btn:focus-visible, .download-btn:focus-visible, .url-input:focus-visible {
     outline: 2px solid #e7b66a;
     outline-offset: 2px;

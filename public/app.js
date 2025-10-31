@@ -221,7 +221,6 @@ initBulk();
 initSplashAndTransitions();
 initScrollAppear();
 initRipples();
-initMotionToggle();
 initScrollTop();
 
 function extractFilename(contentDisposition){
@@ -252,27 +251,7 @@ function initScrollTop(){
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 }
 
-function initMotionToggle(){
-  const navRight = document.querySelector('.nav-right');
-  if (!navRight) return;
-  const btn = document.createElement('button');
-  btn.id = 'motion-toggle';
-  btn.className = 'btn';
-  btn.title = 'Toggle reduced motion';
-  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9 7 7 0 0 0 9 9z"></path></svg>Motion';
-  const apply = (on) => {
-    document.body.classList.toggle('reduce-motion', !!on);
-    localStorage.setItem('soldown_reduce_motion', on ? '1' : '0');
-  };
-  const saved = localStorage.getItem('soldown_reduce_motion') === '1';
-  if (saved) document.body.classList.add('reduce-motion');
-  btn.addEventListener('click', () => {
-    const now = !document.body.classList.contains('reduce-motion');
-    apply(now);
-    toast(now ? 'Reduced motion on' : 'Reduced motion off', 'info');
-  });
-  navRight.appendChild(btn);
-}
+// motion toggle removed
 
 function initScrollAppear(){
   const targets = document.querySelectorAll('.main-card, .format-card, .recent-item, .bulk-item');
@@ -374,6 +353,7 @@ function toggleTheme(){
   const next = document.body.classList.toggle('light');
   localStorage.setItem('soldown_theme', next ? 'light' : 'dark');
   setTimeout(() => document.body.classList.remove('theme-anim'), 350);
+  updateThemeButton();
 }
 
 function initSplashAndTransitions(){
@@ -407,6 +387,16 @@ function initSplashAndTransitions(){
 function initTheme(){
   const saved = localStorage.getItem('soldown_theme');
   if (saved === 'light') document.body.classList.add('light');
+  updateThemeButton();
+}
+
+function updateThemeButton(){
+  if (!themeToggle) return;
+  const isLight = document.body.classList.contains('light');
+  themeToggle.setAttribute('aria-pressed', String(isLight));
+  themeToggle.innerHTML = isLight
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>Light'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>Dark';
 }
 
 function toast(message, type='info'){

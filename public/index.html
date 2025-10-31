@@ -26,7 +26,7 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <link rel="apple-touch-icon" href="/icon.svg">
     <link rel="manifest" href="/manifest.json">
-    <script>/* Redirect root to Home */ try { if (location.pathname === '/' || location.pathname === '/index.html') { location.replace('/home.html'); } } catch(e) {}</script>
+    <script>/* Redirect root to Home (only when at "/") */ try { if (location.pathname === '/') { location.replace('/home.html'); } } catch(e) {}</script>
     <script>try { if (localStorage.getItem('soldown_theme') === 'light') { document.addEventListener('DOMContentLoaded', function () { document.body.classList.add('light') }); } } catch (e) { }</script>
     <link rel="stylesheet" href="/styles.css">
 </head>
