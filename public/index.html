@@ -1,166 +1,173 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" class="dark-mode">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>SOLDOWN - Download Videos From Any Platform</title>
-    <meta name="description"
-        content="Download videos from YouTube, Vimeo, Twitter, Instagram, TikTok and more in MP4 or MP3 format">
-    <meta name="theme-color" content="#B08968">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SOLDOWN">
-
-    <!-- Favicons and PWA Icons -->
+    <title>SOLDOWN — Vintage Cassette Downloader</title>
+    <meta name="description" content="Download videos from YouTube, Vimeo, TikTok etc. as vintage cassette tapes.">
+    <meta name="theme-color" content="#1B1B1B">
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <link rel="apple-touch-icon" href="/icon.svg">
     <link rel="manifest" href="/manifest.json">
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@700&family=VT323&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
-</head>
+    <!-- Native Shadowy Tape Recorder Vignette and Glow -->
+    <style>
+        html,body {
+            width: 100vw; height: 100vh; margin: 0; padding: 0;
+            overflow-x: hidden; box-sizing: border-box;
+            background: #1B1B1B;
+        }
+        body {
+            font-family: 'Orbitron','VT323','Rajdhani',sans-serif;
+            min-width: 100vw; min-height: 100vh;
+        }
 
+        .soldown-recorder-ui {
+            /* Stretch nearly full width */
+            width: 96vw;
+            max-width: 1670px;
+            min-width: 330px;
+            min-height: 91vh;
+            margin: 0 auto !important;
+            left: 0; right: 0; top: 0; bottom: 0;
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: stretch;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+
+        /* Make splash screen always full-bleed */
+        #splash-screen.splash-screen {
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            min-width: 100vw;
+            min-height: 100vh;
+        }
+    </style>
+</head>
 <body>
-    <!-- Splash Screen -->
+    <!-- Splash Boot Anim -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
             <div class="logo-container">
-                <h1 class="logo">SOLDOWN</h1>
+                <h1 class="logo" style="font-family:'Orbitron','Rajdhani',sans-serif;letter-spacing:.25em;text-shadow:0 4px 20px #F6C97770,0 2px #513A10;">SOLDOWN</h1>
                 <div class="download-animation">
-                    <div class="wave-bar"></div>
-                    <div class="wave-bar"></div>
-                    <div class="wave-bar"></div>
-                    <div class="wave-bar"></div>
-                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
                 </div>
             </div>
-            <div class="splash-subtitle">Download videos from any platform</div>
+            <div class="splash-subtitle">Booting up the deck...</div>
         </div>
     </div>
 
-    <!-- Main Application -->
-    <div id="main-app" class="main-app hidden">
-        <!-- Header -->
-        <header class="header">
-            <div class="container">
-                <h1 class="brand-logo">SOLDOWN</h1>
-                <div class="header-right">
-                    <button id="install-btn" class="install-btn hidden">📱 Install App</button>
-                    <div class="legal-notice">
-                        <span class="disclaimer">⚠ For personal, non-copyrighted content only</span>
-                    </div>
+    <!-- CENTRAL VINTAGE CASSETTE RECORDER -->
+    <div class="tape-recorder soldown-recorder-ui" id="main-app" style="display:none;">
+        <div class="dust-overlay"></div>
+        <div class="dust-glint"></div>
+        
+        <!-- Tape Input Box Above Everything -->
+        <div class="tape-input-box">
+            <input id="video-url" class="url-input" placeholder="Insert tape (paste video URL)..." autocomplete="off" />
+            <button id="insert-btn" class="insert-btn">Insert Tape</button>
+        </div>
+        
+        <!-- Top Bar: Logo & Analog Power Knob -->
+        <div class="recorder-chrome-top">
+            <span class="recorder-brand" style="font-family:'Orbitron','Rajdhani',sans-serif; text-align:center; display:block; width:100%;">SOLDOWN</span>
+        </div>
+        <div class="tuning-dial" aria-label="Power/Volume Knob"></div>
+        <!-- Glowing Info Strip & Status with CRT scanlines and flicker-->
+        <div class="crt-bar fxlayer">
+            <span class="scanline-fx"></span>
+        </div>
+        <div class="led-info-strip">
+            <svg class="led-anim" width="160" height="18">
+                <circle id="led-play" cx="16" cy="10" r="6" fill="#9affbe"/>
+                <circle id="led-stop" cx="40" cy="10" r="6" fill="#ffc1a6"/>
+                <circle id="led-spin" cx="64" cy="10" r="6" fill="#fddb6c"/>
+                <circle id="led-rec"  cx="88" cy="10" r="6" fill="#ff5a5a"/>
+            </svg>
+            <span class="led-feature-wording" style="font-family:'VT323','monospace'; font-size: 1.13em;">Insert tape to begin recording from YouTube, Vimeo, TikTok, etc.
+            </span>
+            <span id="main-status" class="main-status crt-glow"></span>
+            <button id="sound-toggle" class="sound-toggle" title="Toggle Sounds">SND</button>
+        </div>
+        <!-- Toggle Switches (MP3/MP4 with LED) -->
+        <div class="selector-switch-row">
+            <span class="selector-label">FORMAT</span>
+            <button id="mp4-btn" class="format-toggle-btn active">MP4</button>
+            <button id="mp3-btn" class="format-toggle-btn">MP3</button>
+        </div>
+        <!-- Tape Window: Cassette & Input Bay -->
+        <div class="tape-window">
+            <div class="tape-reel left-reel"><div class="reel-inner"></div></div>
+            <div class="tape-path" aria-hidden="true"></div>
+            <div id="tape-face"></div>
+            <div class="tape-reel right-reel"><div class="reel-inner"></div></div>
+            <!-- Animated VU Meters -->
+            <div class="vu-meters" aria-hidden="true">
+                <div class="vu-bar"></div>
+                <div class="vu-bar"></div>
+                <div class="vu-bar"></div>
+                <div class="vu-bar"></div>
+                <div class="vu-bar"></div>
+            </div>
+        </div>
+        <!-- Format Rotary Disk & NAV Buttons -->
+        <div class="selector-disk-area">
+            <div class="disk-area" id="disk-area"></div>
+            <div class="rotary-btns">
+                <div class="control-with-label">
+                    <button id="back-btn" class="recorder-control rotary-shadow play-style" title="Prev Tape (Back)"></button>
+                    <span class="control-label">BACK</span>
+                </div>
+                <div class="control-with-label">
+                    <button id="play-btn" class="recorder-control rotary-shadow play-style" title="Download (Play)">▶</button>
+                    <span class="control-label">PLAY</span>
+                </div>
+                <div class="control-with-label">
+                    <button id="stop-btn" class="recorder-control rotary-shadow play-style" title="Stop"></button>
+                    <span class="control-label">STOP</span>
+                </div>
+                <div class="control-with-label">
+                    <button id="eject-btn" class="recorder-control rotary-shadow eject-style" title="Download Selected">
+                        <span class="dl-icon" aria-hidden="true"></span>
+                        <span class="eject-text">EJECT</span>
+                    </button>
+                    <span class="control-label">EJECT</span>
+                </div>
+                <div class="control-with-label">
+                    <button id="next-btn" class="recorder-control rotary-shadow play-style" title="Next Tape (Forward)"></button>
+                    <span class="control-label">NEXT</span>
                 </div>
             </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="container">
-                <div class="hero-section">
-                    <h2 class="hero-title">Download Videos in Seconds</h2>
-                    <p class="hero-subtitle">Paste any video URL and get instant access to multiple formats</p>
-
-                    <!-- URL Input Section -->
-                    <div class="input-section">
-                        <!-- Format Type Selector -->
-                        <div class="format-type-selector">
-                            <button class="format-type-btn active" data-format="mp4">
-                                <span class="format-type-icon">🎥</span>
-                                <span class="format-type-text">MP4 Video</span>
-                            </button>
-                            <button class="format-type-btn" data-format="mp3">
-                                <span class="format-type-icon">🎵</span>
-                                <span class="format-type-text">MP3 Audio</span>
-                            </button>
-                        </div>
-                        <div class="input-wrapper">
-                            <input type="text" id="video-url" class="url-input" placeholder="Paste video URL here..."
-                                autocomplete="off">
-                            <button id="download-btn" class="download-btn">
-                                <span class="btn-text">Analyze</span>
-                                <span class="btn-loader hidden">Processing...</span>
-                            </button>
-                        </div>
-                        <div class="supported-platforms">
-                            <span class="platform-label">Supported:</span>
-                            <span class="platform-tag">YouTube</span>
-                            <span class="platform-tag">Vimeo</span>
-                            <span class="platform-tag">Twitter</span>
-                            <span class="platform-tag">Instagram</span>
-                            <span class="platform-tag">TikTok</span>
-                            <span class="platform-tag">More...</span>
-                        </div>
-                    </div>
-
-                    <!-- Status Message -->
-                    <div id="status-message" class="status-message hidden"></div>
-
-                    <!-- Loading Animation -->
-                    <div id="loading-animation" class="loading-animation hidden">
-                        <div class="loading-spinner"></div>
-                        <p class="loading-text">Analyzing video link...</p>
-                    </div>
-
-                    <!-- Format Selection -->
-                    <div id="format-selection" class="format-selection hidden">
-                        <h3 class="format-title">Select Quality</h3>
-                        <div id="format-options" class="format-options">
-                            <!-- Format options will be dynamically added here -->
-                        </div>
-                    </div>
-
-                    <!-- Progress Section -->
-                    <div id="progress-section" class="progress-section hidden">
-                        <div class="progress-bar-container">
-                            <div id="progress-bar" class="progress-bar"></div>
-                        </div>
-                        <div id="progress-text" class="progress-text">Processing...</div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Features Section -->
-        <section class="features">
-            <div class="container">
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">📥</div>
-                        <h3>No Size Limits</h3>
-                        <p>Download videos of any size without restrictions</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🎵</div>
-                        <h3>Multiple Formats</h3>
-                        <p>Choose from MP4, MP3, and various quality options</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Fast & Reliable</h3>
-                        <p>Lightning-fast downloads with 99.5% uptime</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🔒</div>
-                        <h3>Secure</h3>
-                        <p>HTTPS encrypted connections for your safety</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <p>&copy; 2025 SOLDOWN. Built for educational purposes.</p>
-        </footer>
+        </div>
+        <!-- Format/Text status info (Cassette LED) -->
+        <div id="format-info-vintage" class="format-vintage-info"></div>
+        <div id="loading-animation" class="loading-animation hidden"><div class="loading-text">Analyzing video link...</div></div>
+        <!-- Footer Info LED style -->
+        <div id="footer-led" class="footer" style="background:#18170c; color:#F6C977; font-family:'VT323','monospace'; font-size:1.1em; letter-spacing:0.06em; box-shadow:0 -2px 14px #1611079a inset; margin-top:11px;">MP4 | 1080p | 12.4 MB | codec: aac / h.264</div>
     </div>
-
     <script src="/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registered: ', registration);
+                }).catch(error => {
+                    console.log('ServiceWorker registration failed: ', error);
+                });
+            });
+        }
+    </script>
 </body>
-
 </html>

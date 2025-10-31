@@ -6,7 +6,8 @@
     "scripts": {
         "start": "node api/index.js",
         "dev": "nodemon api/index.js",
-        "install-win": "set YOUTUBE_DL_SKIP_PYTHON_CHECK=1 && npm install"
+        "install-win": "set YOUTUBE_DL_SKIP_PYTHON_CHECK=1 && npm install",
+        "dev:clean": "start chrome --disable-application-cache --incognito --user-data-dir=%TEMP%\\soldown_tmp http://localhost:3000 && npm start"
     },
     "keywords": [
         "video",

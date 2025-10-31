@@ -20,7 +20,13 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+// Force no-cache for all served assets in dev
+app.use((req, res, next) => {
+   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+   res.set('Pragma', 'no-cache');
+   next();
+});
+app.use(express.static(path.join(__dirname, '../public'), {maxAge: 0}));
 
 // Helper function to get video info (prefer yt-dlp for multi-site)
 async function getVideoInfo(url) {

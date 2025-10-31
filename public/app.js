@@ -10,396 +10,673 @@ let currentFormatType = 'mp4'; // 'mp4' or 'mp3'
 // DOM Elements
 const splashScreen = document.getElementById('splash-screen');
 const mainApp = document.getElementById('main-app');
+// -------------- TAPE RECORDER UI REFS --------------
 const urlInput = document.getElementById('video-url');
-const downloadBtn = document.getElementById('download-btn');
-const statusMessage = document.getElementById('status-message');
-const formatSelection = document.getElementById('format-selection');
-const formatOptions = document.getElementById('format-options');
-const progressSection = document.getElementById('progress-section');
-const progressBar = document.getElementById('progress-bar');
-const progressText = document.getElementById('progress-text');
-const installBtn = document.getElementById('install-btn');
+const insertBtn = document.getElementById('insert-btn');
+const diskArea = document.getElementById('disk-area');
+const statusMessage = document.getElementById('main-status');
 const loadingAnimation = document.getElementById('loading-animation');
-const formatTypeButtons = document.querySelectorAll('.format-type-btn');
-let deferredPrompt;
+const backBtn = document.getElementById('back-btn');
+const nextBtn = document.getElementById('next-btn');
+const playBtn = document.getElementById('play-btn');
+const stopBtn = document.getElementById('stop-btn');
+const mp4Btn = document.getElementById('mp4-btn');
+const mp3Btn = document.getElementById('mp3-btn');
+const ledPlay = document.getElementById('led-play');
+const ledStop = document.getElementById('led-stop');
+const ledSpin = document.getElementById('led-spin');
+const ledRec = document.getElementById('led-rec');
+const tapeWindow = document.querySelector('.tape-window');
+const leftReel = document.querySelector('.left-reel');
+const rightReel = document.querySelector('.right-reel');
+const tapeFace = document.getElementById('tape-face');
+const tuningDial = document.querySelector('.tuning-dial');
+const soundToggleBtn = document.getElementById('sound-toggle');
+// Get EJECT button
+const ejectBtn = document.getElementById('eject-btn');
 
-// Initialize App
-document.addEventListener('DOMContentLoaded', () => {
-    // Register Service Worker for PWA
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registered'))
-            .catch(err => console.log('Service Worker registration failed'));
+// Dust glint flare logic:
+const dustGlint = document.querySelector('.dust-glint');
+function showDustGlint(x) {
+    if (!dustGlint) return;
+    dustGlint.classList.add('active');
+    dustGlint.style.background = `linear-gradient(113deg, transparent ${(x-30)/window.innerWidth*100}%, #fff8 87%, #ffdaa024 92%, transparent 98%)`;
+    setTimeout(() => {
+        if (dustGlint) dustGlint.classList.remove('active');
+    }, 230)
+}
+document.addEventListener('mousemove', (e) => {
+    showDustGlint(e.clientX);
+});
+document.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches[0])
+        showDustGlint(e.touches[0].clientX);
+});
+
+// Knob drag interactivity for tuning-dial
+if (tuningDial) {
+    let dragging = false, baseDeg = 0;
+    let clickAudio = null;
+    function playKnobClick() {
+        if (!clickAudio) {
+            clickAudio = new Audio('/sounds/knob_click.mp3');
+            clickAudio.volume = 0.33;
+        }
+        if (!tapeSounds.insert.muted) clickAudio.play();
     }
-    
-    // Format type selector
-    formatTypeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Update active state
-            formatTypeButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Update format type
-            currentFormatType = btn.dataset.format;
-            
-            // Reset UI if formats were already loaded
-            if (currentFormats.length > 0) {
-                resetUI();
-                analyzeURL(urlInput.value.trim());
+    tuningDial.addEventListener('mousedown', (e) => {
+        dragging = true; playKnobClick();
+        tuningDial.classList.add('rotating');
+        document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const min = -45, max = 45; // deg
+        let pct = Math.min(Math.max((e.clientX / window.innerWidth - 0.5) * 2, -1), 1);
+        let deg = Math.round(pct * 45);
+        tuningDial.style.transform = `rotate(${deg}deg)`;
+        if (deg > 25) tuningDial.classList.add('power-on');
+        else tuningDial.classList.remove('power-on');
+        baseDeg = deg;
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        playKnobClick();
+        dragging = false;
+        document.body.style.userSelect = '';
+        tuningDial.classList.remove('rotating');
+        tuningDial.style.transform = `rotate(${baseDeg}deg)`;
+    });
+    tuningDial.addEventListener('mouseleave', () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.userSelect = '';
+        tuningDial.classList.remove('rotating');
+        tuningDial.style.transform = `rotate(0deg)`;
+    });
+}
+
+// Cassette label editing
+const tapeLabels = {};
+function tapeId() {
+    // crude unique ID, use URL for now
+    if (formats[0] && formats[0].url) return formats[0].url.split('//').pop().split('/').join('').split('?')[0].slice(0,25);
+    return 'notape';
+}
+function installTapeLabelEditable() {
+    if (!tapeFace) return;
+    const curId = tapeId();
+    const curLbl = tapeLabels[curId] || '';
+    // Find .tape-format in tapeFace and wrap with .tape-editable-label if not already
+    const labelDiv = tapeFace.querySelector('.tape-format');
+    if (!labelDiv) return;
+    let wrap = labelDiv.querySelector('.tape-editable-label');
+    if (!wrap) {
+        wrap = document.createElement('span');
+        wrap.className = 'tape-editable-label';
+        wrap.tabIndex = 0;
+        wrap.textContent = curLbl || labelDiv.textContent.trim() || 'Untitled';
+        labelDiv.textContent = '';
+        labelDiv.appendChild(wrap);
+        wrap.addEventListener('click', enableEdit);
+        wrap.addEventListener('keydown', (e) => { if (e.key=='Enter'){ enableEdit(e); } });
+    }
+    function enableEdit(e) {
+        e.preventDefault();
+        wrap.classList.add('editing');
+        const input = document.createElement('input');
+        input.value = wrap.textContent;
+        wrap.textContent = '';
+        wrap.appendChild(input);
+        input.focus(); input.setSelectionRange(0, input.value.length);
+        input.addEventListener('blur', saveEdit);
+        input.addEventListener('keydown', function(ev){
+            if (ev.key=='Enter'){
+                saveEdit(ev);
             }
         });
+    }
+    function saveEdit(e) {
+        const val = wrap.querySelector('input')?.value?.substring(0,42) || '';
+        tapeLabels[curId] = val || 'Untitled';
+        wrap.classList.remove('editing');
+        wrap.textContent = tapeLabels[curId];
+        wrap.tabIndex = 0;
+    }
+}
+// augment updateTapeFace to always call installTapeLabelEditable
+const _origUTF = updateTapeFace;
+updateTapeFace = function(format){
+    _origUTF.call(this, format);
+    installTapeLabelEditable();
+};
+
+
+// Tape recorder state
+let formats = [];
+let currentIndex = 0;
+let spinning = false;
+let spinTimer = null;
+let isPlaying = false;
+// queue of tapes: { url, formats }
+let tapesQueue = [];
+let currentTape = -1;
+let tapeSounds = {
+    insert: new Audio('/sounds/tape_insert.mp3'),
+    play: new Audio('/sounds/tape_play.mp3'),
+    stop: new Audio('/sounds/tape_stop.mp3'),
+    rewind: new Audio('/sounds/tape_rewind.mp3'),
+    fastForward: new Audio('/sounds/tape_fast_forward.mp3')
+};
+
+// Initialize tape sounds with default volume
+Object.values(tapeSounds).forEach(sound => {
+    sound.volume = 0.5;
+    // Create silent versions to preload
+    sound.muted = true;
+    sound.play().catch(() => {});
+    sound.muted = false;
+});
+
+function setLED(which) {
+  ledPlay.classList.remove('active');
+  ledStop.classList.remove('active');
+  ledSpin.classList.remove('active');
+  if (which === 'play') ledPlay.classList.add('active');
+  if (which === 'stop') ledStop.classList.add('active');
+  if (which === 'spin') ledSpin.classList.add('active');
+}
+
+function resetLED(){ 
+    ledPlay.classList.remove('active'); 
+    ledStop.classList.remove('active'); 
+    ledSpin.classList.remove('active'); 
+}
+
+ function updateStatus(msg) {
+    statusMessage.textContent = msg;
+    // brief CRT glow flicker to simulate VFD
+    statusMessage.classList.add('crt-glow');
+    setTimeout(()=>statusMessage.classList.remove('crt-glow'), 300);
+ }
+
+function showLoading(show = true) {
+    if (loadingAnimation) {
+        if (show) {
+            loadingAnimation.classList.remove('hidden');
+            tapeWindow.classList.add('processing');
+        } else {
+            loadingAnimation.classList.add('hidden');
+            tapeWindow.classList.remove('processing');
+        }
+    }
+}
+
+function updateToggleBtns() {
+    mp4Btn.classList.toggle('active', currentFormatType==='mp4');
+    mp3Btn.classList.toggle('active', currentFormatType==='mp3');
+}
+
+function playTapeSound(soundType) {
+    // Stop any currently playing sounds
+    Object.values(tapeSounds).forEach(sound => {
+        sound.pause();
+        sound.currentTime = 0;
     });
     
-    // Show splash screen for 2-3 seconds
-    setTimeout(() => {
-        splashScreen.style.animation = 'fadeOut 0.8s ease-out';
-        setTimeout(() => {
-            splashScreen.classList.add('hidden');
-            mainApp.classList.remove('hidden');
-        }, 800);
-    }, 2500);
-});
-
-// PWA Install Handler
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    installBtn.classList.remove('hidden');
-});
-
-installBtn.addEventListener('click', async () => {
-    if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to install prompt: ${outcome}`);
-        deferredPrompt = null;
-        installBtn.classList.add('hidden');
-    }
-});
-
-// Hide install button if already installed
-window.addEventListener('appinstalled', () => {
-    console.log('PWA was installed');
-    installBtn.classList.add('hidden');
-    deferredPrompt = null;
-});
-
-// URL Validation
-function isValidURL(url) {
-    try {
-        const urlObj = new URL(url);
-        // Check if it's a supported platform
-        const supportedDomains = [
-            'youtube.com',
-            'youtu.be',
-            'vimeo.com',
-            'twitter.com',
-            'x.com',
-            'instagram.com',
-            'tiktok.com',
-            'fb.com',
-            'facebook.com'
-        ];
-
-        return supportedDomains.some(domain =>
-            urlObj.hostname.includes(domain)
-        );
-    } catch (e) {
-        return false;
+    // Play the requested sound
+    if (tapeSounds[soundType]) {
+        tapeSounds[soundType].play().catch(err => console.log('Audio playback error:', err));
     }
 }
 
-// Show Status Message
-function showStatus(message, type = 'success') {
-    statusMessage.textContent = message;
-    statusMessage.className = `status-message ${type}`;
-    statusMessage.classList.remove('hidden');
-
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        statusMessage.classList.add('hidden');
-    }, 5000);
+function startTapeAnimation() {
+    tapeWindow.classList.add('spinning');
+    spinning = true;
+    setLED('spin');
 }
 
-// Show Progress
-function showProgress(percentage, text) {
-    if (percentage > 0) {
-        progressSection.classList.remove('hidden');
-        progressBar.style.width = `${percentage}%`;
-        progressText.textContent = text;
+function stopTapeAnimation() {
+    // apply mechanical slowing then bounce stop
+    if (tapeWindow.classList.contains('spinning')) {
+        tapeWindow.classList.add('slowing');
+        setTimeout(()=>{
+            tapeWindow.classList.remove('spinning');
+            tapeWindow.classList.remove('slowing');
+            tapeWindow.classList.add('inertia-stop');
+            setTimeout(()=>{
+                tapeWindow.classList.remove('inertia-stop');
+            }, 620);
+        }, 500);
     } else {
-        progressSection.classList.add('hidden');
+        tapeWindow.classList.remove('slowing');
+        tapeWindow.classList.remove('inertia-stop');
     }
+    spinning = false;
+    resetLED();
 }
 
-// Reset UI
-function resetUI() {
-    formatSelection.classList.add('hidden');
-    progressSection.classList.add('hidden');
-    statusMessage.classList.add('hidden');
-    loadingAnimation.classList.add('hidden');
-    downloadBtn.disabled = false;
-    const btnText = downloadBtn.querySelector('.btn-text');
-    const btnLoader = downloadBtn.querySelector('.btn-loader');
-    if (btnText) btnText.classList.remove('hidden');
-    if (btnLoader) btnLoader.classList.add('hidden');
-    currentFormats = [];
-    selectedFormat = null;
+function setRecordLED(on) {
+    if (!ledRec) return;
+    ledRec.classList.toggle('active', !!on);
 }
 
-// Format Selection Handler
-function renderFormatOptions(formats) {
-    currentFormats = formats;
-    formatOptions.innerHTML = '';
-
-    formats.forEach((format, index) => {
-        const option = document.createElement('div');
-        option.className = 'format-option';
-        option.dataset.index = index;
-
-        const displayName = currentFormatType === 'mp3' ? 'MP3 Audio' : format.format;
-        const displayQuality = currentFormatType === 'mp3' 
-            ? `${format.quality}` 
-            : `${format.format} • ${format.quality}`;
-
-        option.innerHTML = `
-            <div class="format-info">
-                <div class="format-name">${displayQuality}</div>
-                <div class="format-details">${format.codec || 'Available'}</div>
-            </div>
-            <div class="format-size">${format.size || 'N/A'}</div>
-        `;
-
-        option.addEventListener('click', () => {
-            document.querySelectorAll('.format-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            option.classList.add('selected');
-            selectedFormat = format;
-        });
-
-        formatOptions.appendChild(option);
-    });
-
-    formatSelection.classList.remove('hidden');
-
-    // Select first option by default
-    if (formats.length > 0) {
-        formats[0].selected = true;
-        document.querySelectorAll('.format-option')[0].classList.add('selected');
-        selectedFormat = formats[0];
-    }
+function setFastSpin(on) {
+    tapeWindow.classList.toggle('fast', !!on);
 }
 
-// Download Button Handler
-downloadBtn.addEventListener('click', async () => {
-    const url = urlInput.value.trim();
+function animateInsert() {
+    tapeWindow.classList.remove('ejecting');
+    tapeWindow.classList.add('inserting');
+    setTimeout(()=>{
+        tapeWindow.classList.remove('inserting');
+        tapeWindow.classList.add('inserted');
+        
+        // 3D transform effect
+        tapeFace.style.transition = "all 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.1)";
+        tapeFace.style.transform = "translate(-50%, -50%) scale(1) translateZ(0) rotateX(0deg)";
+        tapeFace.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
+    }, 400);
+}
 
-    // Validation
-    if (!url) {
-        showStatus('Please paste a video URL', 'error');
-        return;
-    }
+function animateEject(callback) {
+    tapeWindow.classList.remove('inserted');
+    tapeWindow.classList.add('ejecting');
+    
+    // 3D transform effect
+    tapeFace.style.transition = "all 0.7s cubic-bezier(0.2, 0.8, 0.3, 1)";
+    tapeFace.style.transform = "translate(-50%, -115%) scale(0.94) translateZ(30px) rotateX(25deg)";
+    tapeFace.style.boxShadow = "0 40px 60px rgba(0,0,0,0.6)";
+    
+    setTimeout(()=>{
+        tapeWindow.classList.remove('ejecting');
+        if (typeof callback === 'function') callback();
+    }, 650);
+}
 
-    if (!isValidURL(url)) {
-        showStatus('Invalid or unsupported URL. Please check the URL and try again.', 'error');
-        return;
-    }
+function animateHalfEject() {
+    // partial mechanical bounce
+    tapeWindow.classList.remove('inserted');
+    tapeWindow.classList.add('half-eject');
+    setTimeout(()=>{
+        tapeWindow.classList.remove('half-eject');
+    }, 480);
+}
 
-    // If format is already selected, proceed with download
-    if (selectedFormat) {
-        await performDownload(url, selectedFormat);
-        return;
-    }
+function loadTape(tape) {
+    if (!tape) return;
+    formats = tape.formats || [];
+    currentIndex = 0;
+    renderDisk();
+}
 
-    // Otherwise, analyze the URL first
-    await analyzeURL(url);
-});
-
-// Analyze URL
-async function analyzeURL(url) {
-    try {
-        // Update UI
-        downloadBtn.disabled = true;
-        const btnText = downloadBtn.querySelector('.btn-text');
-        const btnLoader = downloadBtn.querySelector('.btn-loader');
-        if (btnText) btnText.classList.add('hidden');
-        if (btnLoader) btnLoader.classList.remove('hidden');
-        loadingAnimation.classList.remove('hidden');
-        formatSelection.classList.add('hidden');
-
-        // Call backend API
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ url })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to analyze URL');
-        }
-
-        // Hide loading animation
-        loadingAnimation.classList.add('hidden');
-
-        // Filter formats based on selected type (MP4 or MP3)
-        let filteredFormats = data.formats;
-        if (currentFormatType === 'mp4') {
-            filteredFormats = data.formats.filter(f => f.format === 'MP4');
-        } else if (currentFormatType === 'mp3') {
-            // For MP3, we'll extract audio - backend will handle this
-            filteredFormats = data.formats;
-        }
-
-        if (filteredFormats.length === 0) {
-            showStatus(`No ${currentFormatType.toUpperCase()} formats available for this video`, 'error');
-            downloadBtn.disabled = false;
-            const btnText = downloadBtn.querySelector('.btn-text');
-            const btnLoader = downloadBtn.querySelector('.btn-loader');
-            if (btnText) {
-                btnText.textContent = 'Analyze';
-                btnText.classList.remove('hidden');
+function renderDisk() {
+    diskArea.innerHTML = '';
+    if (formats.length === 0) return;
+    const selected = formats[currentIndex];
+    const circle = document.createElement('div');
+    circle.className = 'disk-outer';
+    const total = formats.length;
+    const R = 104;
+    formats.forEach((fmt, i) => {
+        // Only show selected+neighbor disks (for clarity)
+        if (total > 1 && Math.abs(i - currentIndex) > 1 && Math.abs(i - currentIndex)!==total-1) return;
+        let rel = i - currentIndex;
+        if (rel < -1) rel += total;
+        if (rel > 1) rel -= total;
+        const angle = rel * 48 * Math.PI / 180;
+        const x = Math.sin(angle) * R + (rel === 0 ? 0 : (rel * 12));
+        const y = Math.cos(angle) * R + (rel === 0 ? 0 : -14);
+        const item = document.createElement('div');
+        item.className = 'disk-item' + (i===currentIndex?' selected':'') + (Math.abs(rel)<1 ? '' : ' neighbor');
+        item.style.transform = `translate(${x}px, ${y}px) scale(${i===currentIndex?1.13:0.75})`;
+        item.style.zIndex = (10-Math.abs(rel))+'';
+        item.innerHTML = `<div class='disk-label'>${fmt.format??''} <span>${fmt.quality??''}</span></div>`;
+        item.onclick = ()=>{ 
+            if (i!==currentIndex) {
+                playTapeSound('rewind');
+                currentIndex=i; 
+                renderDisk();
             }
-            if (btnLoader) btnLoader.classList.add('hidden');
-            return;
         }
+        circle.appendChild(item);
+    });
+    diskArea.appendChild(circle);
 
-        // Show format options
-        showStatus(`Found ${filteredFormats.length} ${currentFormatType.toUpperCase()} format(s) available`, 'success');
-        renderFormatOptions(filteredFormats);
+    // Update tape face with format info
+    updateTapeFace(selected);
 
-        // Update button
-        downloadBtn.disabled = false;
-        if (btnText) {
-            btnText.textContent = 'Download';
-            btnText.classList.remove('hidden');
-        }
-        if (btnLoader) btnLoader.classList.add('hidden');
+    // Info box
+    let info = document.getElementById('format-info-vintage');
+    if (!info) {
+        info = document.createElement('div');
+        info.id = 'format-info-vintage';
+        info.className = 'format-vintage-info';
+        diskArea.parentNode.insertBefore(info, diskArea.nextSibling);
+    }
+    const f = selected;
+    info.innerHTML = `<div class='fmt-meta-bar'><b>${f.format||''}</b> <span>/</span> <b>${f.quality||''}</b> <span>/</span> <b>${f.size||'--'}</b></div><div class='fmt-codec-row'>${f.codec ? 'Codec: <span>'+f.codec+'</span>' : ''}</div>`;
+    info.style.display = 'block';
+    // Gray out tape controls if only one format
+    [backBtn,nextBtn].forEach(btn=>{btn.disabled = (formats.length<=1);});
 
-    } catch (error) {
-        console.error('Error analyzing URL:', error);
-        loadingAnimation.classList.add('hidden');
-        showStatus(error.message || 'Failed to analyze URL. Please try again.', 'error');
-        downloadBtn.disabled = false;
-        if (btnText) {
-            btnText.textContent = 'Analyze';
-            btnText.classList.remove('hidden');
-        }
-        if (btnLoader) btnLoader.classList.add('hidden');
+    // Update footer info display if present
+    const footer = document.querySelector('.footer');
+    if (footer && f) {
+        const meta = `${f.format || ''} | ${f.quality || ''} | ${f.size || '--'} | codec: ${f.codec || '—'}`;
+        footer.textContent = meta;
     }
 }
 
-// Perform Download
-async function performDownload(url, format) {
-    try {
-        // Update UI
-        downloadBtn.disabled = true;
-        const btnText = downloadBtn.querySelector('.btn-text');
-        const btnLoader = downloadBtn.querySelector('.btn-loader');
-        if (btnText) {
-            btnText.textContent = 'Downloading...';
-            btnText.classList.remove('hidden');
-        }
-        if (btnLoader) btnLoader.classList.add('hidden');
-        formatSelection.classList.add('hidden');
-        const progressText = currentFormatType === 'mp3' 
-            ? 'Converting to MP3 audio...' 
-            : 'Preparing download...';
-        showProgress(30, progressText);
+function updateTapeFace(format) {
+    if (!tapeFace) return;
+    
+    // Update tape face with format info
+    let formatLabel = format ? `${format.format || ''} ${format.quality || ''}` : 'No Format';
+    let sizeLabel = format && format.size ? format.size : '';
+    
+    tapeFace.innerHTML = `
+        <div class="tape-label">
+            <div class="tape-format">${formatLabel}</div>
+            <div class="tape-size">${sizeLabel}</div>
+        </div>
+    `;
+}
 
-        // Call backend API
-        const response = await fetch('/api/download', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                url,
-                formatType: currentFormatType,
-                format: format.format,
-                quality: format.quality,
-                itag: format.itag
-            })
+function selectNext(){
+    if (tapesQueue.length > 1) {
+        playTapeSound('fastForward');
+        if (selectorDiskArea) selectorDiskArea.classList.add('output-hidden');
+        animateEject(()=>{
+            currentTape = (currentTape + 1) % tapesQueue.length;
+            animateInsert();
+            loadTape(tapesQueue[currentTape]);
+            updateStatus('Loaded next tape.');
+            if (selectorDiskArea) { selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }
         });
+        return;
+    }
+    if (formats.length<2) return;
+    currentIndex = (currentIndex+1)%formats.length;
+    playTapeSound('fastForward');
+    if (selectorDiskArea) {
+        selectorDiskArea.classList.add('output-hidden');
+        setTimeout(()=>{ renderDisk(); selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }, 220);
+    } else {
+        renderDisk();
+    }
+}
+function selectBack(){
+    if (tapesQueue.length > 1) {
+        playTapeSound('rewind');
+        if (selectorDiskArea) selectorDiskArea.classList.add('output-hidden');
+        animateEject(()=>{
+            currentTape = (currentTape - 1 + tapesQueue.length) % tapesQueue.length;
+            animateInsert();
+            loadTape(tapesQueue[currentTape]);
+            updateStatus('Loaded previous tape.');
+            if (selectorDiskArea) { selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }
+        });
+        return;
+    }
+    if (formats.length<2) return;
+    currentIndex = (currentIndex - 1 + formats.length)%formats.length;
+    playTapeSound('rewind');
+    if (selectorDiskArea) {
+        selectorDiskArea.classList.add('output-hidden');
+        setTimeout(()=>{ renderDisk(); selectorDiskArea.classList.remove('output-hidden'); selectorDiskArea.classList.add('output-visible'); }, 220);
+    } else {
+        renderDisk();
+    }
+}
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Download failed');
-        }
-
-        // Get file info
-        const blob = await response.blob();
-        const contentDisposition = response.headers.get('Content-Disposition');
-        const fileExtension = currentFormatType === 'mp3' ? 'mp3' : 'mp4';
-        let filename = `video.${fileExtension}`;
-
-        if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
-            if (filenameMatch) {
-                filename = filenameMatch[1];
-                // Ensure correct extension
-                if (currentFormatType === 'mp3' && !filename.endsWith('.mp3')) {
-                    filename = filename.replace(/\.[^/.]+$/, '.mp3');
+function startDownload() {
+    if (formats.length === 0) return;
+    const format = formats[currentIndex];
+    if (!format || !format.url) {
+        updateStatus('No download URL available');
+        return;
+    }
+    
+    // Visual and audio feedback
+    playTapeSound('play');
+    startTapeAnimation();
+    setLED('play');
+    setRecordLED(true);
+    setFastSpin(true);
+    if (tuningDial) tuningDial.classList.add('power-on');
+    
+    // Create a temporary link and trigger download
+    const a = document.createElement('a');
+    a.href = format.url;
+    a.download = format.filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    // Show download message with tape counts
+    const totalTapes = tapesQueue.length || 1;
+    const tapeIndexHuman = (currentTape >= 0 ? currentTape : 0) + 1;
+    const meta = `${format.quality || ''}${format.size ? ", " + format.size : ''}`;
+    updateStatus(`Recording... Tape ${tapeIndexHuman} / ${totalTapes} — ${meta}`);
+    
+    // Simulate completion sequence: stop, green, eject
+    setTimeout(() => {
+        stopTapeAnimation();
+        setRecordLED(false);
+        setLED('stop');
+        setFastSpin(false);
+        updateStatus('Download complete — Tape saved to your library.');
+        animateEject(()=>{
+            // Remove current tape from queue once done
+            if (currentTape >=0) {
+                tapesQueue.splice(currentTape,1);
+                if (tapesQueue.length) {
+                    currentTape = currentTape % tapesQueue.length;
+                    animateInsert();
+                    loadTape(tapesQueue[currentTape]);
+                } else {
+                    formats = [];
+                    currentIndex = 0;
+                    diskArea.innerHTML = '';
                 }
             }
-        }
-
-        // Update progress
-        showProgress(90, 'Preparing download...');
-
-        // Download file
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(downloadUrl);
-
-        // Success
-        showProgress(100, 'Download complete!');
-        showStatus('Download started successfully!', 'success');
-
-        // Reset after delay
-        setTimeout(() => {
-            resetUI();
-            urlInput.value = '';
-        }, 3000);
-
-    } catch (error) {
-        console.error('Error downloading:', error);
-        showStatus(error.message || 'Download failed. Please try again.', 'error');
-        showProgress(0);
-        downloadBtn.disabled = false;
-        const btnText = downloadBtn.querySelector('.btn-text');
-        const btnLoader = downloadBtn.querySelector('.btn-loader');
-        if (btnText) {
-            btnText.textContent = 'Download';
-            btnText.classList.remove('hidden');
-        }
-        if (btnLoader) btnLoader.classList.add('hidden');
-    }
+        });
+    }, 3000);
+}
+function doSpin() {
+    if (spinning) return; spinning=true; setLED('spin');
+    spinTimer = setInterval(()=>{ selectNext(); }, 1350);
+    document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='running');
+}
+function stopSpin() {
+    spinning=false; setLED('stop');
+    clearInterval(spinTimer);
+    document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='paused');
 }
 
-// Enter key handler
-urlInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !downloadBtn.disabled) {
-        downloadBtn.click();
+function stopCurrentAction() {
+    // Visual and audio feedback
+    playTapeSound('stop');
+    stopTapeAnimation();
+    setLED('stop');
+    updateStatus('Stopped');
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    // Hide splash screen after a delay
+    setTimeout(() => {
+        splashScreen.style.animation = 'fadeOut 0.5s ease-out forwards';
+        setTimeout(() => {
+            splashScreen.style.display = 'none';
+            mainApp.style.display = 'block';
+            if (tuningDial) tuningDial.classList.add('power-on');
+        }, 500);
+    }, 1500);
+});
+
+
+// Format toggle buttons
+mp4Btn.addEventListener('click', () => {
+    currentFormatType = 'mp4';
+    updateToggleBtns();
+    playTapeSound('stop');
+    // Fetch formats again if URL is present
+    if (urlInput.value) {
+        insertBtn.click();
     }
 });
 
-// Paste handler for better UX
-urlInput.addEventListener('paste', (e) => {
-    setTimeout(() => {
-        const pastedUrl = e.target.value.trim();
-        if (isValidURL(pastedUrl)) {
-            showStatus('URL detected! Click Download to continue.', 'success');
-        }
-    }, 100);
+mp3Btn.addEventListener('click', () => {
+    currentFormatType = 'mp3';
+    updateToggleBtns();
+    playTapeSound('stop');
+    // Fetch formats again if URL is present
+    if (urlInput.value) {
+        insertBtn.click();
+    }
 });
+
+// Control buttons
+backBtn.addEventListener('click', () => {selectBack();});
+nextBtn.addEventListener('click', () => {selectNext();});
+playBtn.addEventListener('mousedown', () => {playBtn.classList.add('pressed');});
+playBtn.addEventListener('mouseup', () => {playBtn.classList.remove('pressed');});
+playBtn.addEventListener('mouseleave', () => {playBtn.classList.remove('pressed');});
+playBtn.addEventListener('click', () => {startDownload();});
+stopBtn.addEventListener('mousedown', () => {stopBtn.classList.add('pressed');});
+stopBtn.addEventListener('mouseup', () => {stopBtn.classList.remove('pressed');});
+stopBtn.addEventListener('mouseleave', () => {stopBtn.classList.remove('pressed');});
+stopBtn.addEventListener('click', () => {stopCurrentAction();});
+
+// Sound toggle
+if (soundToggleBtn) {
+    soundToggleBtn.addEventListener('click', ()=>{
+        const mute = !tapeSounds.insert.muted;
+        Object.values(tapeSounds).forEach(s=> s.muted = mute);
+        soundToggleBtn.textContent = mute ? 'SND✕' : 'SND';
+    });
+}
+
+// URL input and insert button
+insertBtn.addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+        updateStatus('Insert a video URL.');
+        return;
+    }
+    
+    playTapeSound('insert');
+    startTapeAnimation();
+    animateInsert();
+    showLoading(true);
+    setLED('spin');
+    updateStatus('Analyzing link...');
+    
+    try {
+        const resp = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url})
+        });
+        const data = await resp.json();
+        if(!resp.ok) throw new Error(data.error || 'Analyze failed');
+        
+        showLoading(false);
+        const analyzedFormats = (currentFormatType === 'mp4') ? data.formats.filter(f => f.format === 'MP4') : data.formats;
+        
+        if (!analyzedFormats.length) { 
+            updateStatus('No formats found.'); 
+            resetLED(); 
+            return; 
+        }
+        
+        // push to queue and load
+        tapesQueue.push({ url, formats: analyzedFormats });
+        currentTape = tapesQueue.length - 1;
+        formats = analyzedFormats;
+        currentIndex = 0;
+        renderDisk();
+        updateStatus('Ready to download. Use rotary controls to select format.');
+        stopTapeAnimation();
+        setLED('play');
+    } catch(e) {
+        showLoading(false); 
+        updateStatus('Error analyzing: ' + e.message); 
+        stopTapeAnimation();
+        setLED('stop');
+    }
+});
+
+// Add tape cassette visual effects
+urlInput.addEventListener('focus', () => {
+    tapeWindow.classList.add('input-focus');
+});
+
+urlInput.addEventListener('blur', () => {
+    tapeWindow.classList.remove('input-focus');
+});
+// Eject halfway when input cleared
+urlInput.addEventListener('input', () => {
+    const val = urlInput.value.trim();
+    if (!val && tapeWindow.classList.contains('inserted')) {
+        playTapeSound('stop');
+        animateHalfEject();
+        updateStatus('Tape partially ejected — insert a link to load.');
+    }
+});
+updateToggleBtns();
+
+// On Enter in input
+urlInput.addEventListener('keydown',e=>{if(e.key==='Enter'){insertBtn.click();}});
+// Initial setup
+renderDisk();
+resetLED();
+updateStatus('Insert video link, select format, spin the deck!');
+document.querySelectorAll('.tape-reel').forEach(x=>x.style.animationPlayState='paused');
+
+// Apply CRT flicker (safely, periodically on .main-status)
+function crtFlicker() {
+    const ms = document.querySelector('.main-status.crt-glow');
+    if (ms) {
+        ms.style.opacity = (0.97 + Math.random() * 0.07) + '';
+        ms.style.filter = `blur(${0.2 + Math.random() * 0.7}px)`;
+    }
+    setTimeout(crtFlicker, 260 + Math.random() * 340);
+}
+crtFlicker();
+
+function ejectCurrentTape() {
+    if (!formats.length) return;
+    playTapeSound('eject');
+    animateEject(()=>{
+        if (tapesQueue.length && currentTape >= 0) {
+            tapesQueue.splice(currentTape, 1);
+            if (tapesQueue.length) {
+                currentTape = Math.max(0, currentTape % tapesQueue.length);
+                animateInsert();
+                loadTape(tapesQueue[currentTape]);
+            } else {
+                formats = [];
+                currentIndex = 0;
+                diskArea.innerHTML = '';
+            }
+        }
+    });
+}
+if (ejectBtn) {
+    ejectBtn.addEventListener('click', () => {
+        // Trigger download of currently selected format
+        startDownload();
+    });
+}
+
+// Disable EJECT if no tape
+function updateEjectState() {
+    if (ejectBtn) ejectBtn.disabled = !formats.length;
+}
+// Patch into all disk/tape changing points
+const _origRenderDisk = renderDisk;
+renderDisk = function() { _origRenderDisk.apply(this, arguments); updateEjectState(); }
 
